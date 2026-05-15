@@ -41,17 +41,26 @@ class HidDeviceManager(private val context: Context) {
 
     fun setStatusListener(listener: (String) -> Unit) {
         onStatusChanged = listener
-        // Immediately report current state if possible
-        refreshStatus()
+        // Force refresh when listener attaches (e.g., on app resume)
+        refreshConnectionState()
     }
 
-    private fun refreshStatus() {
-        val device = bluetoothHidDevice?.getConnectedDevices()?.firstOrNull()
-        if (device != null) {
+    @SuppressLint("MissingPermission")
+    fun refreshConnectionState() {
+        val connectedDevices = bluetoothHidDevice?.getConnectedDevices() ?: emptyList()
+        if (connectedDevices.isNotEmpty()) {
+            val device = connectedDevices.first()
             connectedDevice = device
             updateStatus("Connected to ${device.name ?: device.address}")
-        } else if (bluetoothHidDevice != null) {
-            updateStatus("App Registered (Ready)")
+        } else {
+            connectedDevice = null
+            if (bluetoothHidDevice != null) {
+                updateStatus("App Registered (Ready)")
+            } else {
+                updateStatus("Initializing HID Service...")
+                // Re-init proxy if it was lost
+                adapter?.getProfileProxy(context, profileServiceListener, BluetoothProfile.HID_DEVICE)
+            }
         }
     }
 

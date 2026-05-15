@@ -1,7 +1,6 @@
 package com.walhalla.bluetoothhiddevice
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -11,27 +10,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import com.walhalla.bluetoothhiddevice.ui.theme.BluetoothHIDDeviceTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    private val viewModel: HidViewModel by viewModels()
 
     private val enableBluetoothLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
-            // Bluetooth enabled
+            viewModel.refreshBondedDevices()
         }
     }
 
@@ -44,7 +35,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         checkPermissions()
@@ -52,159 +42,41 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             BluetoothHIDDeviceTheme {
-                val context = LocalContext.current
-                val hidManager = remember { HidDeviceManager(context) }
-                var status by remember { 
-                    mutableStateOf(if (bluetoothAdapter?.isEnabled == true) "Initializing..." else "Bluetooth is OFF") 
-                }
+                HidScreen(
+                    viewModel = viewModel,
+                    onEnableBluetooth = { checkBluetoothState() },
+                    onMakeDiscoverable = { viewModel.makeDiscoverable(this) }
+                )
+            }
+        }
 
-                LaunchedEffect(hidManager) {
-                    hidManager.setStatusListener { newStatus ->
-                        status = newStatus
-                    }
-                    
-                    // Handle intent if text was shared
-                    if (intent?.action == Intent.ACTION_SEND && intent?.type == "text/plain") {
-                        intent.getStringExtra(Intent.EXTRA_TEXT)?.let { sharedText ->
-                            if (status.contains("Connected")) {
-                                hidManager.sendString(sharedText)
-                            }
-                        }
-                    }
-                }
+        handleIntent(intent)
+    }
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    topBar = {
-                        CenterAlignedTopAppBar(title = { Text("Bluetooth HID Device") })
-                    }
-                ) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .padding(innerPadding)
-                            .padding(16.dp)
-                            .fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        StatusCard(status)
+    override fun onResume() {
+        super.onResume()
+        viewModel.resume()
+    }
 
-                        if (status == "Bluetooth is OFF") {
-                            Button(
-                                onClick = { checkBluetoothState() },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Enable Bluetooth")
-                            }
-                        }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
 
-                        InstructionsSection()
-
-                        Button(
-                            onClick = { hidManager.requestDiscoverable(this@MainActivity) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Make Discoverable")
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        Button(
-                            onClick = { hidManager.sendString("A") },
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            enabled = status.contains("Connected")
-                        ) {
-                            Text("Send Test 'A' Key")
-                        }
-
-                        Text(
-                            text = "Note: Button is only active when connected",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
-                        )
-                    }
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { sharedText ->
+                if (viewModel.uiState.value.isConnected) {
+                    viewModel.sendText(sharedText)
                 }
             }
         }
     }
 
     private fun checkBluetoothState() {
-        if (bluetoothAdapter == null) return
-        if (!bluetoothAdapter.isEnabled) {
+        if (!viewModel.checkBluetoothEnabled()) {
             val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             enableBluetoothLauncher.launch(enableBtIntent)
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    @Composable
-    fun BondedDevicesSection(hidManager: HidDeviceManager) {
-        val bondedDevices = remember { bluetoothAdapter?.bondedDevices?.toList() ?: emptyList() }
-        
-        if (bondedDevices.isNotEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Bonded Devices:", fontWeight = FontWeight.Bold)
-                    bondedDevices.forEach { device ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            @SuppressLint("MissingPermission")
-                            Text(device.name ?: device.address)
-                            Button(onClick = { hidManager.connect(device) }) {
-                                Text("Connect HID")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun StatusCard(status: String) {
-        val isConnected = status.contains("Connected")
-        val isError = status.contains("OFF") || status.contains("Unregistered")
-        
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = when {
-                    isConnected -> Color(0xFFE8F5E9)
-                    isError -> Color(0xFFFFEBEE)
-                    else -> MaterialTheme.colorScheme.surfaceVariant
-                }
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Current Status", style = MaterialTheme.typography.labelMedium)
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = when {
-                        isConnected -> Color(0xFF2E7D32)
-                        isError -> Color(0xFFC62828)
-                        else -> Color.Unspecified
-                    }
-                )
-            }
-        }
-    }
-
-    @Composable
-    fun InstructionsSection() {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("How to connect:", fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("1. Open Bluetooth settings on the Target device (PC/Tablet).")
-                Text("2. Look for this phone in the list of available devices.")
-                Text("3. Pair with this phone.")
-                Text("4. Once paired, the status above should change to 'Connected'.")
-            }
         }
     }
 
