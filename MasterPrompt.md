@@ -32,6 +32,12 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 3. **HID Registration:** Get proxy for `HID_DEVICE` profile and call `registerApp`.
 4. **State Management:** Listen to `onConnectionStateChanged`. Only send reports when state is `STATE_CONNECTED`.
 5. **Report Transmission:** `sendReport` requires a byte array conforming to the registered HID Descriptor.
+6. **Intent Integration:** The app handles `ACTION_SEND` (text/plain). Shared text is processed through a character-to-keycode mapper and sent sequentially to the host.
+
+## Character-to-HID Mapping
+- Maps standard ASCII (A-Z, 0-9, space, enter, punctuation) to HID Usage IDs.
+- **Modifiers:** Uses the first byte of the HID report (0x02 for Left Shift) to handle uppercase and symbols.
+- **Timing:** Sequential typing requires small delays (e.g., 20ms) between reports to prevent host-side buffer overflow.
 
 ## Lessons Learned & Optimizations
 - **API Limitation:** Many emulators do not support the HID profile; testing must be done on physical devices.

@@ -113,21 +113,48 @@ class HidDeviceManager(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    fun sendTestString(text: String) {
+    fun sendString(text: String) {
         val device = connectedDevice ?: return
-        // This is a simplified implementation. 
-        // Real HID keyboard reports require converting characters to usage IDs.
-        // For now, we'll just log and send a simple 'Enter' key or similar if possible,
-        // but typically we need a proper report generator.
-        Log.d(TAG, "Sending text: $text to $device")
+        Log.d(TAG, "Typing string: $text")
         
-        // Example: Sending a "Key A" press and release
+        Thread {
+            for (char in text) {
+                val (keyCode, shift) = charToKeyCode(char)
+                if (keyCode != 0.toByte()) {
+                    sendKey(device, keyCode, shift)
+                    Thread.sleep(20) // Small delay between keys
+                }
+            }
+        }.start()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun sendKey(device: BluetoothDevice, keyCode: Byte, shift: Boolean) {
         val report = ByteArray(8)
-        report[2] = 0x04 // Key A
+        if (shift) report[0] = 0x02 // Left Shift modifier
+        report[2] = keyCode
+        
         bluetoothHidDevice?.sendReport(device, 1, report) // Press
         
-        report[2] = 0x00
+        report[0] = 0
+        report[2] = 0
         bluetoothHidDevice?.sendReport(device, 1, report) // Release
+    }
+
+    private fun charToKeyCode(char: Char): Pair<Byte, Boolean> {
+        return when (char) {
+            in 'a'..'z' -> (0x04 + (char - 'a')).toByte() to false
+            in 'A'..'Z' -> (0x04 + (char - 'A')).toByte() to true
+            in '1'..'9' -> (0x1E + (char - '1')).toByte() to false
+            '0' -> 0x27.toByte() to false
+            ' ' -> 0x2C.toByte() to false
+            '\n' -> 0x28.toByte() to false
+            '.' -> 0x37.toByte() to false
+            ',' -> 0x36.toByte() to false
+            '!' -> 0x1E.toByte() to true
+            '?' -> 0x38.toByte() to true
+            else -> 0.toByte() to false
+        }
     }
 
     fun unregister() {
