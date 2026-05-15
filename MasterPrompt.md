@@ -59,7 +59,16 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
     - Created `charToKeyCode` mapper to translate ASCII characters into HID Scan Codes (including Shift modifiers).
     - Implemented `sendString()` which types text sequentially with a 20ms delay.
 
+### 9. Connection Drop on Background (Battery Optimization)
+- **Problem:** OS suspends Bluetooth stack/proxy when Activity is hidden, breaking the HID link.
+- **Solution (Planned):** Implement a `Foreground Service` to hold the HID proxy.
+- **User Control:** Add a toggle in the UI/Settings to enable/disable "Persistent Mode". If enabled, the app runs a Foreground Service with a notification to maintain high system priority.
+
 ## Core Implementation Details
+...
+### 4. Persistence Modes
+- **Standard Mode:** HID proxy is tied to the ViewModel/Activity lifecycle. Connection may drop when backgrounded.
+- **Persistent Mode:** HID proxy lives in a `Foreground Service`. Connection remains active even if the UI is closed. Requires `FOREGROUND_SERVICE` and `POST_NOTIFICATIONS` permissions.
 
 ### HID Profile Details
 - **Identity:** SDP name "HID Keyboard", subclass `0x40` (Keyboard).
