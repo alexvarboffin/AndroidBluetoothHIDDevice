@@ -90,6 +90,13 @@ class MainActivity : ComponentActivity() {
 
                         InstructionsSection()
 
+                        Button(
+                            onClick = { hidManager.requestDiscoverable(this@MainActivity) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Make Discoverable")
+                        }
+
                         Spacer(modifier = Modifier.weight(1f))
 
                         Button(
@@ -116,6 +123,32 @@ class MainActivity : ComponentActivity() {
         if (!bluetoothAdapter.isEnabled) {
             val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             enableBluetoothLauncher.launch(enableBtIntent)
+        }
+    }
+
+    @Composable
+    fun BondedDevicesSection(hidManager: HidDeviceManager) {
+        val bondedDevices = remember { bluetoothAdapter?.bondedDevices?.toList() ?: emptyList() }
+        
+        if (bondedDevices.isNotEmpty()) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Bonded Devices:", fontWeight = FontWeight.Bold)
+                    bondedDevices.forEach { device ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            @SuppressLint("MissingPermission")
+                            Text(device.name ?: device.address)
+                            Button(onClick = { hidManager.connect(device) }) {
+                                Text("Connect HID")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

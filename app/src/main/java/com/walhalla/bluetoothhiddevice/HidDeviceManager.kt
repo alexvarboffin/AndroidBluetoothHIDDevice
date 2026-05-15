@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothHidDevice
 import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import java.util.concurrent.Executors
 
@@ -69,15 +70,28 @@ class HidDeviceManager(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
+    fun requestDiscoverable(activity: android.app.Activity) {
+        val discoverableIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
+            putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+        }
+        activity.startActivity(discoverableIntent)
+    }
+
+    @SuppressLint("MissingPermission")
     private fun registerApp() {
         val sdp = BluetoothHidDeviceAppSdpSettings(
-            "Android HID",
-            "Android HID Device",
-            "Android",
+            "HID Keyboard",
+            "Android HID Keyboard emulated by Walhalla",
+            "Walhalla",
             BluetoothHidDevice.SUBCLASS1_KEYBOARD,
             HID_REPORT_DESCRIPTOR
         )
         bluetoothHidDevice?.registerApp(sdp, null, null, Executors.newSingleThreadExecutor(), callback)
+    }
+
+    @SuppressLint("MissingPermission")
+    fun connect(device: BluetoothDevice) {
+        bluetoothHidDevice?.connect(device)
     }
 
     @SuppressLint("MissingPermission")

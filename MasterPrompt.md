@@ -14,7 +14,12 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 ### 1. Bluetooth HID Profile
 - Use `BluetoothProfile.HID_DEVICE` (API 28+).
 - **Service Registration:** Requires `BluetoothHidDeviceAppSdpSettings`.
+- **Identity:** Ensure `name` and `description` in SDP settings clearly indicate a keyboard. The `subclass` must be `SUBCLASS1_KEYBOARD`.
 - **Report Descriptors:** Standard HID keyboard/mouse descriptors must be provided during registration.
+
+### 2. Connection Logic
+- **Discoverability:** The device MUST be discoverable (`ACTION_REQUEST_DISCOVERABLE`) for the host to see it during pairing.
+- **Manual Connect:** Sometimes the host pairs but doesn't auto-connect the HID profile. Use `BluetoothHidDevice.connect(device)` to force the profile connection after bonding.
 
 ### 2. Permissions (Android 12+ / API 31+)
 - Mandatory: `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE`.
