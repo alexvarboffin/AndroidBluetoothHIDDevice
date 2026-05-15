@@ -41,6 +41,24 @@ fun HidScreen(
         ) {
             StatusCard(uiState.status, uiState.isConnected, uiState.isBluetoothOff)
 
+            // Settings Section
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Persistent Mode", fontWeight = FontWeight.Bold)
+                        Text("Keep connection alive in background", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(
+                        checked = uiState.isPersistentMode,
+                        onCheckedChange = { viewModel.togglePersistence(it) }
+                    )
+                }
+            }
+
             if (uiState.isBluetoothOff) {
                 Button(
                     onClick = onEnableBluetooth,
