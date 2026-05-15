@@ -6,51 +6,71 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 ## Technical Stack
 - **Language:** Kotlin
 - **UI:** Jetpack Compose (Material 3)
+- **Architecture:** MVVM (ViewModel + StateFlow)
 - **Min API:** 28 (Android 9.0 Pie) - Required for `BluetoothHidDevice`.
 - **Target API:** 34+
 
+## Development History: Problem & Solution Log
+
+### 1. Initial Setup & HID Support
+- **Problem:** Need to emulate a hardware keyboard without custom drivers on the host.
+- **Solution:** Used `BluetoothProfile.HID_DEVICE` (API 28+). 
+- **Tools:** Implemented `HidDeviceManager` to handle `BluetoothProfile.ServiceListener` and `BluetoothHidDevice.Callback`.
+
+### 2. Permissions (Modern Android)
+- **Problem:** Bluetooth permissions changed significantly in Android 12 (API 31).
+- **Solution:** Implemented dual-logic permission checks. 
+    - API >= 31: `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE`.
+    - API < 31: `BLUETOOTH`, `BLUETOOTH_ADMIN`.
+- **Logic:** Used `ActivityResultContracts.RequestMultiplePermissions` in `MainActivity`.
+
+### 3. Bluetooth State Management
+- **Problem:** App fails or stays in "Initializing" if Bluetooth is disabled on the phone.
+- **Solution:** Added `BluetoothAdapter.isEnabled` check. If off, triggers `ACTION_REQUEST_ENABLE` system dialog. UI shows "Bluetooth is OFF" with an enable button.
+
+### 4. Host OS Identification (SDP Settings)
+- **Problem:** PC sees the device but doesn't recognize it as a keyboard.
+- **Solution:** Refined `BluetoothHidDeviceAppSdpSettings`. 
+    - Set name to "HID Keyboard".
+    - Explicitly used `SUBCLASS1_KEYBOARD`.
+    - Provided a standard 8-byte Keyboard HID Report Descriptor.
+
+### 5. UI Threading & State Sync
+- **Problem:** Bluetooth callbacks (onConnectionStateChanged) happen on background threads, causing Compose UI to not update or crash.
+- **Solution:** Implemented `updateStatus()` helper using `Handler(Looper.getMainLooper())` to force all UI-bound updates onto the Main Thread.
+
+### 6. Background Persistence & App Resume
+- **Problem:** Swiping away/backgrounding the app breaks the UI state or drops the HID proxy.
+- **Solution:** 
+    - Refactored to **ViewModel** architecture (`HidViewModel`) to survive Activity recreation.
+    - Implemented `resume()` in ViewModel (called from `MainActivity.onResume`) that triggers `getConnectedDevices()` to re-sync the app's internal "Connected" state with the actual system Bluetooth state.
+
+### 7. Connection "Ghosting" & Recovery
+- **Problem:** Device shows as paired on PC but "Disconnected" in app, and the `connect` button seems unresponsive.
+- **Solution:**
+    - Added an `isRegistered` flag to track HID App registration independently of the service proxy.
+    - Implemented `forceReset()`: unregisters the app, clears the proxy, and re-initializes the entire HID flow.
+    - Added a **"Reset HID Service"** (Emergency Button) in the UI for hard-recovery.
+
+### 8. Text Input & Share Intent
+- **Problem:** Need to send more than just one key and integrate with other apps.
+- **Solution:** 
+    - Added `intent-filter` for `ACTION_SEND` (text/plain).
+    - Created `charToKeyCode` mapper to translate ASCII characters into HID Scan Codes (including Shift modifiers).
+    - Implemented `sendString()` which types text sequentially with a 20ms delay.
+
 ## Core Implementation Details
 
-### 1. Bluetooth HID Profile
-- Use `BluetoothProfile.HID_DEVICE` (API 28+).
-- **Service Registration:** Requires `BluetoothHidDeviceAppSdpSettings`.
-- **Identity:** Ensure `name` and `description` in SDP settings clearly indicate a keyboard. The `subclass` must be `SUBCLASS1_KEYBOARD`.
-- **Report Descriptors:** Standard HID keyboard/mouse descriptors must be provided during registration.
+### HID Profile Details
+- **Identity:** SDP name "HID Keyboard", subclass `0x40` (Keyboard).
+- **Report Transmission:** `sendReport` (ID 1, 8-byte array). 
+    - `report[0]`: Modifiers (Shift=0x02).
+    - `report[2]`: Usage ID (A=0x04, etc.).
 
-### 2. Connection Logic
-- **Discoverability:** The device MUST be discoverable (`ACTION_REQUEST_DISCOVERABLE`) for the host to see it during pairing.
-- **Manual Connect:** Sometimes the host pairs but doesn't auto-connect the HID profile. Use `BluetoothHidDevice.connect(device)` to force the profile connection after bonding.
-
-### 2. Permissions (Android 12+ / API 31+)
-- Mandatory: `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE`.
-- Legacy (API <= 30): `BLUETOOTH`, `BLUETOOTH_ADMIN`.
-- Runtime requests are mandatory before initializing the Bluetooth adapter.
-
-### 3. Execution Logic (AI Agent Workflow)
-1. **Verify Environment:** Check if Bluetooth is supported and enabled. Use `ACTION_REQUEST_ENABLE` if off.
-2. **Permissions First:** Do not initialize `HidDeviceManager` until permissions are granted.
-3. **HID Registration:** Get proxy for `HID_DEVICE` profile and call `registerApp`.
-4. **State Management:** Listen to `onConnectionStateChanged`. Only send reports when state is `STATE_CONNECTED`.
-5. **Report Transmission:** `sendReport` requires a byte array conforming to the registered HID Descriptor.
-6. **Intent Integration:** The app handles `ACTION_SEND` (text/plain). Shared text is processed through a character-to-keycode mapper and sent sequentially to the host.
-
-### Technical Research (Off-topic: Layout Independence)
-- **HID vs Data Channels:** Detailed comparison of Scan Codes vs Unicode sockets can be found in `Documentation/ARCHITECTURE/bluetooth-transmission-logic.md`.
-- **Key Takeaway:** HID is layout-dependent by design (sends physical scan codes). For layout-independent transfer, a custom receiver agent on the host would be required (using SPP/GATT mode).
-
-## Character-to-HID Mapping
-- Maps standard ASCII (A-Z, 0-9, space, enter, punctuation) to HID Usage IDs.
-- **Modifiers:** Uses the first byte of the HID report (0x02 for Left Shift) to handle uppercase and symbols.
-- **Timing:** Sequential typing requires small delays (e.g., 20ms) between reports to prevent host-side buffer overflow.
-
-## Lessons Learned & Optimizations
-- **API Limitation:** Many emulators do not support the HID profile; testing must be done on physical devices.
-- **Async Initialization:** `getProfileProxy` is asynchronous. Use a `ServiceListener` and only interact with the proxy after `onServiceConnected`.
-- **Threading:** Bluetooth callbacks occur on background threads. UI updates MUST be dispatched to the Main Thread (e.g., using `Handler(Looper.getMainLooper())`).
-- **State Persistence:** UI state must be synchronized with the `BluetoothHidDevice` proxy state. Use `getConnectedDevices()` in the `onResume` lifecycle event to ensure the UI and internal `connectedDevice` reference are accurate after backgrounding.
-- **Lifecycle Management:** Managed via `HidViewModel.resume()` which triggers a manual refresh of both bonded devices and active HID connections.
-- **User Feedback:** The UI must clearly distinguish between "App Registered" (service ready) and "Device Connected" (host is linked).
+### Lifecycle Guidelines
+- **UI Sync:** Always refresh state in `onResume` via `BluetoothHidDevice.getConnectedDevices()`.
+- **Reset Logic:** When in doubt, `unregisterApp` and re-init the proxy.
 
 ## Versioning & Persistence
-- This project uses Git for version control.
-- All custom skills and tools developed should be documented here and committed.
+- Project managed via Git. 
+- Technical Research (HID vs SPP) documented in `Documentation/ARCHITECTURE/bluetooth-transmission-logic.md`.

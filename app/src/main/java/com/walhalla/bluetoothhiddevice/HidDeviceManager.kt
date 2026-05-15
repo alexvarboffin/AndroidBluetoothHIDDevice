@@ -21,10 +21,12 @@ class HidDeviceManager(private val context: Context) {
     private var bluetoothHidDevice: BluetoothHidDevice? = null
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private var connectedDevice: BluetoothDevice? = null
+    private var isRegistered = false
 
     private val profileServiceListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
             if (profile == BluetoothProfile.HID_DEVICE) {
+                Log.d(TAG, "HID Service Connected")
                 bluetoothHidDevice = proxy as BluetoothHidDevice
                 registerApp()
             }
@@ -32,7 +34,10 @@ class HidDeviceManager(private val context: Context) {
 
         override fun onServiceDisconnected(profile: Int) {
             if (profile == BluetoothProfile.HID_DEVICE) {
+                Log.d(TAG, "HID Service Disconnected")
                 bluetoothHidDevice = null
+                isRegistered = false
+                updateStatus("HID Service Lost")
             }
         }
     }
@@ -47,6 +52,17 @@ class HidDeviceManager(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     fun refreshConnectionState() {
+        if (bluetoothHidDevice == null) {
+            updateStatus("Initializing HID Service...")
+            adapter?.getProfileProxy(context, profileServiceListener, BluetoothProfile.HID_DEVICE)
+            return
+        }
+
+        if (!isRegistered) {
+            registerApp()
+            return
+        }
+
         val connectedDevices = bluetoothHidDevice?.getConnectedDevices() ?: emptyList()
         if (connectedDevices.isNotEmpty()) {
             val device = connectedDevices.first()
@@ -54,14 +70,24 @@ class HidDeviceManager(private val context: Context) {
             updateStatus("Connected to ${device.name ?: device.address}")
         } else {
             connectedDevice = null
-            if (bluetoothHidDevice != null) {
-                updateStatus("App Registered (Ready)")
-            } else {
-                updateStatus("Initializing HID Service...")
-                // Re-init proxy if it was lost
-                adapter?.getProfileProxy(context, profileServiceListener, BluetoothProfile.HID_DEVICE)
+            updateStatus("App Registered (Ready)")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun forceReset() {
+        Log.d(TAG, "Force resetting HID Service")
+        if (isRegistered) {
+            try {
+                bluetoothHidDevice?.unregisterApp()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unregistering", e)
             }
         }
+        isRegistered = false
+        connectedDevice = null
+        bluetoothHidDevice = null
+        adapter?.getProfileProxy(context, profileServiceListener, BluetoothProfile.HID_DEVICE)
     }
 
     private fun updateStatus(status: String) {
@@ -72,9 +98,11 @@ class HidDeviceManager(private val context: Context) {
 
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
-            val status = if (registered) "App Registered (Ready)" else "App Registration FAILED"
-            Log.d(TAG, "onAppStatusChanged: $status")
+            isRegistered = registered
+            val status = if (registered) "App Registered (Ready)" else "App Unregistered"
+            Log.d(TAG, "onAppStatusChanged: registered=$registered")
             updateStatus(status)
+            if (registered) refreshConnectionState()
         }
 
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
@@ -130,6 +158,12 @@ class HidDeviceManager(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     fun connect(device: BluetoothDevice) {
+        if (bluetoothHidDevice == null || !isRegistered) {
+            updateStatus("Error: Service not ready")
+            refreshConnectionState()
+            return
+        }
+        Log.d(TAG, "Manually connecting to ${device.name}")
         bluetoothHidDevice?.connect(device)
     }
 
@@ -179,7 +213,13 @@ class HidDeviceManager(private val context: Context) {
     }
 
     fun unregister() {
-        // Implementation for unregistering
+        if (isRegistered) {
+            try {
+                bluetoothHidDevice?.unregisterApp()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unregistering", e)
+            }
+        }
     }
 
     companion object {

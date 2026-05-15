@@ -59,6 +59,14 @@ fun HidScreen(
                 Text("Make Discoverable")
             }
 
+            Button(
+                onClick = { viewModel.forceReset() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+            ) {
+                Text("Reset HID Service")
+            }
+
             // Bonded Devices List
             if (uiState.bondedDevices.isNotEmpty()) {
                 Text(

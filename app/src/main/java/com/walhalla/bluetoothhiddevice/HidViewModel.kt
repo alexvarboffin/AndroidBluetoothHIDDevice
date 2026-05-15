@@ -54,6 +54,10 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         hidManager.sendString(text)
     }
 
+    fun forceReset() {
+        hidManager.forceReset()
+    }
+
     fun checkBluetoothEnabled(): Boolean {
         return bluetoothAdapter?.isEnabled == true
     }
