@@ -11,9 +11,13 @@ import android.content.Intent
 import android.util.Log
 import java.util.concurrent.Executors
 
+import android.os.Handler
+import android.os.Looper
+
 class HidDeviceManager(private val context: Context) {
 
     private val TAG = "HidDeviceManager"
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var bluetoothHidDevice: BluetoothHidDevice? = null
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private var connectedDevice: BluetoothDevice? = null
@@ -39,11 +43,17 @@ class HidDeviceManager(private val context: Context) {
         onStatusChanged = listener
     }
 
+    private fun updateStatus(status: String) {
+        mainHandler.post {
+            onStatusChanged?.invoke(status)
+        }
+    }
+
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
-            val status = if (registered) "App Registered" else "App Unregistered"
+            val status = if (registered) "App Registered (Ready)" else "App Registration FAILED"
             Log.d(TAG, "onAppStatusChanged: $status")
-            onStatusChanged?.invoke(status)
+            updateStatus(status)
         }
 
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
@@ -55,13 +65,21 @@ class HidDeviceManager(private val context: Context) {
                 else -> "State: $state"
             }
             Log.d(TAG, "onConnectionStateChanged: $stateStr")
-            onStatusChanged?.invoke(stateStr)
+            updateStatus(stateStr)
             
             if (state == BluetoothProfile.STATE_CONNECTED) {
                 connectedDevice = device
             } else if (state == BluetoothProfile.STATE_DISCONNECTED) {
                 connectedDevice = null
             }
+        }
+
+        override fun onSetReport(device: BluetoothDevice?, type: Byte, id: Byte, data: ByteArray?) {
+            Log.d(TAG, "onSetReport from ${device?.name}: type=$type id=$id data=${data?.contentToString()}")
+        }
+
+        override fun onGetReport(device: BluetoothDevice?, type: Byte, id: Byte, bufferSize: Int) {
+            Log.d(TAG, "onGetReport from ${device?.name}: type=$type id=$id")
         }
     }
 

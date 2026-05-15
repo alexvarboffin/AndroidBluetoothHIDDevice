@@ -36,6 +36,7 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 ## Lessons Learned & Optimizations
 - **API Limitation:** Many emulators do not support the HID profile; testing must be done on physical devices.
 - **Async Initialization:** `getProfileProxy` is asynchronous. Use a `ServiceListener` and only interact with the proxy after `onServiceConnected`.
+- **Threading:** Bluetooth callbacks occur on background threads. UI updates MUST be dispatched to the Main Thread (e.g., using `Handler(Looper.getMainLooper())`).
 - **User Feedback:** The UI must clearly distinguish between "App Registered" (service ready) and "Device Connected" (host is linked).
 
 ## Versioning & Persistence
