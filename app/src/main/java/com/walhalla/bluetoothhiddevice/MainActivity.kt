@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.weight(1f))
 
                         Button(
-                            onClick = { hidManager.sendTestString("Hello") },
+                            onClick = { hidManager.sendString("A") },
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                             enabled = status.contains("Connected")
                         ) {
@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     @Composable
     fun BondedDevicesSection(hidManager: HidDeviceManager) {
         val bondedDevices = remember { bluetoothAdapter?.bondedDevices?.toList() ?: emptyList() }

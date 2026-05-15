@@ -41,6 +41,18 @@ class HidDeviceManager(private val context: Context) {
 
     fun setStatusListener(listener: (String) -> Unit) {
         onStatusChanged = listener
+        // Immediately report current state if possible
+        refreshStatus()
+    }
+
+    private fun refreshStatus() {
+        val device = bluetoothHidDevice?.getConnectedDevices()?.firstOrNull()
+        if (device != null) {
+            connectedDevice = device
+            updateStatus("Connected to ${device.name ?: device.address}")
+        } else if (bluetoothHidDevice != null) {
+            updateStatus("App Registered (Ready)")
+        }
     }
 
     private fun updateStatus(status: String) {
