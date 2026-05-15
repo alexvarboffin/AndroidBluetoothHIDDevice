@@ -34,6 +34,10 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 5. **Report Transmission:** `sendReport` requires a byte array conforming to the registered HID Descriptor.
 6. **Intent Integration:** The app handles `ACTION_SEND` (text/plain). Shared text is processed through a character-to-keycode mapper and sent sequentially to the host.
 
+### Technical Research (Off-topic: Layout Independence)
+- **HID vs Data Channels:** Detailed comparison of Scan Codes vs Unicode sockets can be found in `Documentation/ARCHITECTURE/bluetooth-transmission-logic.md`.
+- **Key Takeaway:** HID is layout-dependent by design (sends physical scan codes). For layout-independent transfer, a custom receiver agent on the host would be required (using SPP/GATT mode).
+
 ## Character-to-HID Mapping
 - Maps standard ASCII (A-Z, 0-9, space, enter, punctuation) to HID Usage IDs.
 - **Modifiers:** Uses the first byte of the HID report (0x02 for Left Shift) to handle uppercase and symbols.
