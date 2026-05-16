@@ -37,14 +37,15 @@ class HidDeviceManager(private val context: Context) {
                 Log.d(TAG, "HID Service Disconnected")
                 bluetoothHidDevice = null
                 isRegistered = false
+                connectedDevice = null
                 updateStatus("HID Service Lost")
             }
         }
     }
 
-    private var onStatusChanged: ((String) -> Unit)? = null
+    private var onStatusChanged: ((String, BluetoothDevice?) -> Unit)? = null
 
-    fun setStatusListener(listener: (String) -> Unit) {
+    fun setStatusListener(listener: (String, BluetoothDevice?) -> Unit) {
         onStatusChanged = listener
         // Force refresh when listener attaches (e.g., on app resume)
         refreshConnectionState()
@@ -92,13 +93,16 @@ class HidDeviceManager(private val context: Context) {
 
     private fun updateStatus(status: String) {
         mainHandler.post {
-            onStatusChanged?.invoke(status)
+            onStatusChanged?.invoke(status, connectedDevice)
         }
     }
 
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
             isRegistered = registered
+            if (!registered) {
+                connectedDevice = null
+            }
             val status = if (registered) "App Registered (Ready)" else "App Unregistered"
             Log.d(TAG, "onAppStatusChanged: registered=$registered")
             updateStatus(status)
@@ -106,6 +110,12 @@ class HidDeviceManager(private val context: Context) {
         }
 
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
+            if (state == BluetoothProfile.STATE_CONNECTED) {
+                connectedDevice = device
+            } else if (state == BluetoothProfile.STATE_DISCONNECTED) {
+                connectedDevice = null
+            }
+
             val stateStr = when (state) {
                 BluetoothProfile.STATE_CONNECTED -> "Connected to ${device?.name ?: "Unknown"}"
                 BluetoothProfile.STATE_CONNECTING -> "Connecting..."
@@ -115,12 +125,6 @@ class HidDeviceManager(private val context: Context) {
             }
             Log.d(TAG, "onConnectionStateChanged: $stateStr")
             updateStatus(stateStr)
-            
-            if (state == BluetoothProfile.STATE_CONNECTED) {
-                connectedDevice = device
-            } else if (state == BluetoothProfile.STATE_DISCONNECTED) {
-                connectedDevice = null
-            }
         }
 
         override fun onSetReport(device: BluetoothDevice?, type: Byte, id: Byte, data: ByteArray?) {
@@ -165,6 +169,17 @@ class HidDeviceManager(private val context: Context) {
         }
         Log.d(TAG, "Manually connecting to ${device.name}")
         bluetoothHidDevice?.connect(device)
+    }
+
+    @SuppressLint("MissingPermission")
+    fun disconnect(device: BluetoothDevice) {
+        if (bluetoothHidDevice == null || connectedDevice?.address != device.address) {
+            updateStatus("Error: Device is not connected")
+            refreshConnectionState()
+            return
+        }
+        Log.d(TAG, "Disconnecting from ${device.name}")
+        bluetoothHidDevice?.disconnect(device)
     }
 
     @SuppressLint("MissingPermission")

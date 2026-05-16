@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.os.Build
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BluetoothConnected
+import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -95,7 +98,13 @@ fun HidScreen(
                     modifier = Modifier.align(Alignment.Start)
                 )
                 uiState.bondedDevices.forEach { device ->
-                    BondedDeviceRow(device) { viewModel.connect(device) }
+                    val isConnectedDevice = uiState.connectedDeviceAddress == device.address
+                    BondedDeviceRow(
+                        device = device,
+                        isConnected = isConnectedDevice,
+                        onConnect = { viewModel.connect(device) },
+                        onDisconnect = { viewModel.disconnect(device) }
+                    )
                 }
             }
 
@@ -164,11 +173,22 @@ fun InstructionsSection() {
 
 @SuppressLint("MissingPermission")
 @Composable
-fun BondedDeviceRow(device: android.bluetooth.BluetoothDevice, onConnect: () -> Unit) {
-
+fun BondedDeviceRow(
+    modifier: Modifier = Modifier,
+    device: BluetoothDevice,
+    isConnected: Boolean,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isConnected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            }
+        )
     ) {
         Row(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
@@ -180,8 +200,23 @@ fun BondedDeviceRow(device: android.bluetooth.BluetoothDevice, onConnect: () -> 
                 Text(device.name ?: "Unknown Device", fontWeight = FontWeight.Bold)
                 Text(device.address, style = MaterialTheme.typography.bodySmall)
             }
-            Button(onClick = onConnect) {
-                Text("Connect")
+            Button(
+                onClick = if (isConnected) onDisconnect else onConnect,
+                colors = if (isConnected) {
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                } else {
+                    ButtonDefaults.buttonColors()
+                }
+            ) {
+                Icon(
+                    imageVector = if (isConnected) Icons.Filled.BluetoothDisabled else Icons.Filled.BluetoothConnected,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (isConnected) "Disconnect" else "Connect")
             }
         }
     }

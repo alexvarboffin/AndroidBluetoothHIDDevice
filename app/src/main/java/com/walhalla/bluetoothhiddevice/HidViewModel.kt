@@ -43,11 +43,12 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun setupStatusListener() {
-        hidManager.setStatusListener { status ->
+        hidManager.setStatusListener { status, connectedDevice ->
             _uiState.value = _uiState.value.copy(
                 status = status,
-                isConnected = status.contains("Connected"),
-                isBluetoothOff = status.contains("OFF")
+                isConnected = connectedDevice != null,
+                isBluetoothOff = status.contains("OFF"),
+                connectedDeviceAddress = connectedDevice?.address
             )
         }
     }
@@ -90,6 +91,10 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         hidManager.connect(device)
     }
 
+    fun disconnect(device: BluetoothDevice) {
+        hidManager.disconnect(device)
+    }
+
     fun sendText(text: String) {
         hidManager.sendString(text)
     }
@@ -108,5 +113,6 @@ data class HidUiState(
     val isConnected: Boolean = false,
     val isBluetoothOff: Boolean = false,
     val isPersistentMode: Boolean = false,
+    val connectedDeviceAddress: String? = null,
     val bondedDevices: List<BluetoothDevice> = emptyList()
 )

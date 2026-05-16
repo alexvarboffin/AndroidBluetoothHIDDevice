@@ -12,6 +12,14 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 
 ## Development History: Problem & Solution Log
 
+### 0. AI Handoff & Knowledge Preservation Protocol
+- **Problem:** User corrections, failed attempts, and project-specific decisions can be lost between AI coding sessions.
+- **Solution:** Keep this `MasterPrompt.md` as the compact source of truth for future AI agents.
+- **Rule:** If the user's clarification changes the task, contradicts this MP, or reveals a better solution after a failed attempt, update MP before finishing the work.
+- **Format:** Record only durable lessons as `Problem -> Solution -> Tools/Files`, optimized for reuse by another AI programmer.
+- **Do not bloat MP:** Put long implementation plans in `Documentation/Roadmap.md`, technical trade-off analysis in `Documentation/ARCHITECTURE/`, UI conventions in `Documentation/guidelines/`, and user-facing release notes in `Whatsnew.md` or `Documentation/Whatsnew.md`.
+- **Optional acceleration:** Create Cursor skills/tools only for repeatable workflows where they prevent likely future mistakes.
+
 ### 1. Initial Setup & HID Support
 - **Problem:** Need to emulate a hardware keyboard without custom drivers on the host.
 - **Solution:** Used `BluetoothProfile.HID_DEVICE` (API 28+). 
@@ -59,7 +67,12 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
     - Created `charToKeyCode` mapper to translate ASCII characters into HID Scan Codes (including Shift modifiers).
     - Implemented `sendString()` which types text sequentially with a 20ms delay.
 
-### 9. Connection Drop on Background (Battery Optimization)
+### 9. Paired Device Row Connect/Disconnect State
+- **Problem:** The paired-device row had only a `Connect` action and a global `isConnected` flag, so UI could not know which bonded device was connected or offer a safe disconnect action for that row.
+- **Solution:** Track the connected device address in `HidUiState`, pass row-level `isConnected` into `BondedDeviceRow`, and switch the button between `Connect` and `Disconnect`.
+- **Tools/Files:** `HidDeviceManager.disconnect()`, `HidViewModel.connectedDeviceAddress`, `BondedDeviceRow`, and `material-icons-extended` for Bluetooth action icons.
+
+### 10. Connection Drop on Background (Battery Optimization)
 - **Problem:** OS suspends Bluetooth stack/proxy when Activity is hidden, breaking the HID link.
 - **Solution (Planned):** Implement a `Foreground Service` to hold the HID proxy.
 - **User Control:** Add a toggle in the UI/Settings to enable/disable "Persistent Mode". If enabled, the app runs a Foreground Service with a notification to maintain high system priority.
@@ -82,4 +95,5 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 
 ## Versioning & Persistence
 - Project managed via Git. 
+- Canonical roadmap lives in `Documentation/Roadmap.md`; do not keep a duplicate roadmap in the project root.
 - Technical Research (HID vs SPP) documented in `Documentation/ARCHITECTURE/bluetooth-transmission-logic.md`.
