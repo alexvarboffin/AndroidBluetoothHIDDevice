@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.walhalla.bluetoothhiddevice.presets.PresetActionCodec
 import com.walhalla.bluetoothhiddevice.presets.PresetCategoryEntity
@@ -61,7 +62,13 @@ fun HidScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Bluetooth HID Device") },
+                title = {
+                    StatusTopBarTitle(
+                        status = uiState.status,
+                        isConnected = uiState.isConnected,
+                        isBluetoothOff = uiState.isBluetoothOff
+                    )
+                },
                 actions = {
                     HostCommandPresetMenu(
                         enabled = uiState.isConnected,
@@ -83,8 +90,6 @@ fun HidScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            StatusCard(uiState.status, uiState.isConnected, uiState.isBluetoothOff)
-
             PrimaryTabRow(selectedTabIndex = selectedTab) {
                 Tab(
                     selected = selectedTab == 0,
@@ -215,6 +220,25 @@ fun HidScreen(
 }
 
 @Composable
+fun StatusTopBarTitle(status: String, isConnected: Boolean, isBluetoothOff: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "Bluetooth HID Device",
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = status,
+            style = MaterialTheme.typography.labelSmall,
+            color = statusColor(status, isConnected, isBluetoothOff),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 fun DevicesTab(
     uiState: HidUiState,
     onEnableBluetooth: () -> Unit,
@@ -318,7 +342,7 @@ fun DevicesTab(
 
 @Composable
 fun StatusCard(status: String, isConnected: Boolean, isBluetoothOff: Boolean) {
-    val isError = isBluetoothOff || status.contains("Unregistered") || status.contains("FAILED")
+    val isError = isStatusError(status, isBluetoothOff)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -344,6 +368,18 @@ fun StatusCard(status: String, isConnected: Boolean, isBluetoothOff: Boolean) {
             )
         }
     }
+}
+
+private fun statusColor(status: String, isConnected: Boolean, isBluetoothOff: Boolean): Color {
+    return when {
+        isConnected -> Color(0xFF2E7D32)
+        isStatusError(status, isBluetoothOff) -> Color(0xFFC62828)
+        else -> Color.Unspecified
+    }
+}
+
+private fun isStatusError(status: String, isBluetoothOff: Boolean): Boolean {
+    return isBluetoothOff || status.contains("Unregistered") || status.contains("FAILED")
 }
 
 @Composable
@@ -583,7 +619,7 @@ fun PresetCard(
         )
     ) {
         Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -594,17 +630,29 @@ fun PresetCard(
                 Icon(
                     imageVector = presetActionIcon(actionType),
                     contentDescription = presetActionLabel(actionType),
+                    modifier = Modifier.size(20.dp),
                     tint = if (preset.isSensitive) {
                         MaterialTheme.colorScheme.onErrorContainer
                     } else {
                         MaterialTheme.colorScheme.primary
                     }
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(preset.title, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = preset.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     if (preset.description.isNotBlank()) {
-                        Text(preset.description, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            text = preset.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                     Text(
                         presetActionLabel(actionType),
@@ -617,7 +665,7 @@ fun PresetCard(
                     )
                     if (preset.isSensitive) {
                         Text(
-                            "Sensitive: confirmation required",
+                            "Sensitive",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -626,37 +674,47 @@ fun PresetCard(
             }
             Column(
                 horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Button(
+                FilledTonalButton(
                     enabled = enabled,
-                    onClick = onRunPreset
+                    onClick = onRunPreset,
+                    modifier = Modifier.height(32.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
                     Text("Run")
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     IconButton(
                         enabled = !preset.isBuiltIn,
-                        onClick = onEditPreset
+                        onClick = onEditPreset,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Edit,
-                            contentDescription = "Edit preset"
+                            contentDescription = "Edit preset",
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                    IconButton(onClick = onDuplicatePreset) {
+                    IconButton(
+                        onClick = onDuplicatePreset,
+                        modifier = Modifier.size(32.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = "Copy preset"
+                            contentDescription = "Copy preset",
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                     IconButton(
                         enabled = !preset.isBuiltIn,
-                        onClick = onDeletePreset
+                        onClick = onDeletePreset,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Delete,
                             contentDescription = "Delete preset",
+                            modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }

@@ -49,6 +49,9 @@
 - [x] RoomDB: добавлена миграция v2 -> v3 для `presets.isBuiltIn`.
 - [x] Build note: для текущей связки AGP 9 built-in Kotlin + KSP добавлен `android.disallowKotlinSourceSets=false` в `gradle.properties`.
 - [x] HID experiment: composite descriptor (`Report ID 1` keyboard, `Report ID 2` mouse) был проверочно добавлен и затем откатан; пользователь подтвердил, что в keyboard-only режиме ввод пресетов быстрее. Composite может требовать re-pairing для честного теста, но не должен быть режимом по умолчанию.
+- [x] GitHub publishing: добавлен `README.md` с описанием проекта, возможностей, требований, сборки, использования, ограничений и ссылок на внутреннюю документацию.
+- [x] UI: `Current Status` перенесён из отдельной карточки в `TopAppBar` как subtext под названием приложения; цвет subtext отражает connected/error/neutral состояние.
+- [x] UI: preset item cards сделаны компактнее: меньше padding/spacing, короткая кнопка `Run`, action icons уменьшены, description обрезается в одну строку.
 - [ ] Проверка на устройстве: добавить custom preset, экспортировать JSON, импортировать обратно, запустить обычный и sensitive preset.
 
 Файлы для проверки:
@@ -60,6 +63,7 @@
 - `app/build.gradle.kts`
 - `gradle/libs.versions.toml`
 - `gradle.properties`
+- `README.md`
 - `MasterPrompt.md`
 
 ## Next Work

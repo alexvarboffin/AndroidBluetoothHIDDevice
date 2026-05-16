@@ -103,6 +103,21 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Solution (Planned):** Implement a `Foreground Service` to hold the HID proxy.
 - **User Control:** Add a toggle in the UI/Settings to enable/disable "Persistent Mode". If enabled, the app runs a Foreground Service with a notification to maintain high system priority.
 
+### 14. GitHub Publishing README
+- **Problem:** Project needed a public-facing README before GitHub publication.
+- **Solution:** Added `README.md` with project purpose, features, requirements, build commands, usage flow, preset/security notes, documentation links, known limitations, and license reminder.
+- **Tools/Files:** `README.md`, `Documentation/Roadmap.md`.
+
+### 15. Toolbar Status UX
+- **Problem:** The separate `Current Status` card consumed vertical space and duplicated information that should stay visible while switching tabs.
+- **Solution:** Moved status into `CenterAlignedTopAppBar` title area as a one-line subtext under the app name, with connected/error/neutral color.
+- **Tools/Files:** `HidScreen.StatusTopBarTitle`, `statusColor`, `Documentation/Roadmap.md`.
+
+### 16. Compact Preset Items
+- **Problem:** Preset cards became visually tall after adding run/edit/copy/delete actions.
+- **Solution:** Reduced card padding/spacing, made `Run` a compact `FilledTonalButton`, reduced action icon sizes, and clipped long title/description text with ellipsis.
+- **Tools/Files:** `HidScreen.PresetCard`, `Documentation/Roadmap.md`.
+
 ## Core Implementation Details
 ...
 ### 4. Persistence Modes
