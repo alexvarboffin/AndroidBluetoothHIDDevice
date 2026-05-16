@@ -110,8 +110,9 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Persistent Mode:** HID proxy lives in a `Foreground Service`. Connection remains active even if the UI is closed. Requires `FOREGROUND_SERVICE` and `POST_NOTIFICATIONS` permissions.
 
 ### HID Profile Details
-- **Identity:** SDP name "HID Keyboard", subclass `0x40` (Keyboard).
-- **Report Transmission:** `sendReport` (ID 1, 8-byte array). 
+- **Identity:** SDP name "HID Keyboard", subclass `SUBCLASS1_KEYBOARD`.
+- **Descriptor status:** Active descriptor is keyboard-only again. User verified preset typing is faster in keyboard-only mode than with the composite keyboard/mouse descriptor. Composite may require host re-pairing for a fair test, but it must not be enabled by default; the rolled-back experiment is preserved only as comments in `HidDeviceManager`.
+- **Report Transmission:** Keyboard presets use `sendReport` (ID 1, 8-byte array).
     - `report[0]`: Modifiers (Shift=0x02).
     - `report[0]`: Left GUI / Windows modifier (Win=0x08).
     - `report[2]`: Usage ID (A=0x04, etc.).

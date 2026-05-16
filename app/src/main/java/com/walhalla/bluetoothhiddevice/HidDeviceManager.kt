@@ -157,6 +157,14 @@ class HidDeviceManager(private val context: Context) {
             BluetoothHidDevice.SUBCLASS1_KEYBOARD,
             HID_REPORT_DESCRIPTOR
         )
+        // Composite SDP experiment, kept commented for quick restore if needed:
+        // val sdp = BluetoothHidDeviceAppSdpSettings(
+        //     "Android HID Controller",
+        //     "Android composite HID keyboard/mouse emulated by Walhalla",
+        //     "Walhalla",
+        //     BluetoothHidDevice.SUBCLASS1_COMBO,
+        //     HID_REPORT_DESCRIPTOR
+        // )
         bluetoothHidDevice?.registerApp(sdp, null, null, Executors.newSingleThreadExecutor(), callback)
     }
 
@@ -373,5 +381,13 @@ class HidDeviceManager(private val context: Context) {
             0x81.toByte(), 0x00.toByte(), // Input (Data, Array) ; Key codes
             0xC0.toByte()                // End Collection
         )
+
+        /*
+         * Composite descriptor experiment, kept commented so it can be restored if needed.
+         * Keyboard was Report ID 1 and mouse was Report ID 2. No runtime mouse reports were sent.
+         *
+         * To restore it, add 0x85, 0x01 after the keyboard Collection item, append the mouse
+         * collection bytes, and use BluetoothHidDevice.SUBCLASS1_COMBO in registerApp().
+         */
     }
 }
