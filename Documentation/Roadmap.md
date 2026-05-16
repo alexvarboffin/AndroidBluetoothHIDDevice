@@ -33,15 +33,20 @@
 - [x] Проблема: hardcoded пресеты не позволяют пользователю создавать категории `Дом`, `Работа`, `Программирование`, хранить свои сценарии, импортировать/экспортировать их и добавлять sensitive ввод.
 - [x] Решение: добавлена модель `PresetCategory -> Preset -> PresetAction` на RoomDB.
 - [x] UI: добавлена вкладка `Presets`, category chips, preset cards, add dialog, toolbar menu из RoomDB, import/export actions.
-- [x] Macro actions: `RunWindowsCommand`, `TypeText`, `TypeSensitiveText`, `KeyCombo`, `KeyPress`, `Delay`.
+- [x] Macro actions: `RunWindowsCommand`, `TypeText`, `TypeSensitiveText`, `Credential`, `KeyCombo`, `KeyPress`, `Delay`.
+- [x] Credential preset: в редакторе показываются два поля `Login` и `Password`; запуск вводит login, `Tab`, password, `Enter`.
+- [x] Credential safety: credential presets всегда помечаются `isSensitive`, требуют подтверждение перед запуском и сохраняются plaintext в RoomDB в рамках текущего решения по sensitive data.
 - [x] Безопасность: sensitive значения на первом этапе хранятся в RoomDB plaintext по решению пользователя, но помечаются `isSensitive`, требуют подтверждение перед запуском и предупреждают перед экспортом.
 - [x] Импорт/экспорт: JSON через системные `OpenDocument` и `CreateDocument`.
 - [x] UX: при добавлении пресета `title` и `description` предзаполнены значением формата `Preset-123`; ViewModel также применяет fallback при пустых строках.
 - [x] UX: у айтемов пресетов добавлены Material icons по типу первого действия (`RunWindowsCommand`, `TypeText`, `TypeSensitiveText`, `KeyCombo`, `KeyPress`, `Delay`).
+- [x] Items: у preset items добавлены действия `Copy`, `Edit` и `Delete`; copy создаёт новый custom preset в той же категории с теми же actions, edit открывает редактор с текущими значениями, delete удаляет custom preset и actions после подтверждения.
+- [x] Items: встроенные seed presets помечены `PresetEntity.isBuiltIn`; их можно запускать и копировать, но нельзя редактировать или удалять.
 - [x] Группы: категории пресетов отображаются чипами в две строки с горизонтальной прокруткой.
 - [x] Группы: добавлен механизм добавления пользовательских групп с default title формата `Group-123`.
 - [x] Группы: пользовательские группы можно удалять; встроенные `Дом`, `Работа`, `Программирование` помечены `isBuiltIn` и не удаляются.
 - [x] RoomDB: добавлена миграция v1 -> v2 для `preset_categories.isBuiltIn`.
+- [x] RoomDB: добавлена миграция v2 -> v3 для `presets.isBuiltIn`.
 - [x] Build note: для текущей связки AGP 9 built-in Kotlin + KSP добавлен `android.disallowKotlinSourceSets=false` в `gradle.properties`.
 - [ ] Проверка на устройстве: добавить custom preset, экспортировать JSON, импортировать обратно, запустить обычный и sensitive preset.
 

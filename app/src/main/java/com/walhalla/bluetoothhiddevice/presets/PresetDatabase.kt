@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PresetEntity::class,
         PresetActionEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class PresetDatabase : RoomDatabase() {
@@ -30,7 +30,7 @@ abstract class PresetDatabase : RoomDatabase() {
                     PresetDatabase::class.java,
                     "preset_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -44,6 +44,26 @@ abstract class PresetDatabase : RoomDatabase() {
                     UPDATE preset_categories
                     SET isBuiltIn = 1
                     WHERE title IN ('Дом', 'Работа', 'Программирование')
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE presets ADD COLUMN isBuiltIn INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    UPDATE presets
+                    SET isBuiltIn = 1
+                    WHERE title IN (
+                        'Calculator',
+                        'Notepad',
+                        'Firefox Profile Manager',
+                        'Task Manager',
+                        'Android Studio',
+                        'Visual Studio Code'
+                    )
                     """.trimIndent()
                 )
             }

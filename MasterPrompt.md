@@ -90,9 +90,12 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Tools/Files:** `presets/*`, `PresetRepository`, `PresetExecutor`, `HidScreen` Presets tab, `MainActivity` document launchers, Room/KSP Gradle dependencies.
 - **Build note:** AGP 9 built-in Kotlin requires `android.disallowKotlinSourceSets=false` for current KSP generated sources; do not remove unless KSP/AGP setup is changed.
 - **Security decision:** Per user decision, first-stage sensitive values can be stored in RoomDB as plaintext, but they are marked `isSensitive`, require confirmation before execution, and warn before export.
-- **Action model:** Initial action types are `RunWindowsCommand`, `TypeText`, `TypeSensitiveText`, `KeyCombo`, `KeyPress`, and `Delay`.
+- **Action model:** Initial action types are `RunWindowsCommand`, `TypeText`, `TypeSensitiveText`, `Credential`, `KeyCombo`, `KeyPress`, and `Delay`.
+- **Credential action:** Editor shows separate `Login` and `Password` fields. Execution types login, presses `Tab`, types password, then presses `Enter`. Credential presets are always marked sensitive and require confirmation before execution/export.
 - **UX rule:** New preset `title` and `description` fields must be prefilled with a generated default like `Preset-123`; ViewModel also applies the same fallback if blanks are submitted.
 - **UX rule:** Preset list items must show a Material icon for the first action type, so users can distinguish command launch, text input, sensitive text, key actions, and delays at a glance.
+- **Item rule:** Preset items can be copied, edited, and deleted. Copy creates a new custom preset in the same category with the same actions and a `copy` suffix. Built-in seed presets are marked `PresetEntity.isBuiltIn`; they can be copied and run, but cannot be edited or deleted. Delete removes only custom presets and cascades their actions after confirmation.
+- **DB note:** `PresetDatabase` v3 adds `presets.isBuiltIn`; migration v2 -> v3 marks the default seed presets as built-in.
 - **Category rule:** Preset categories are user-manageable groups displayed as two-row horizontally scrollable chips. Built-in groups (`Дом`, `Работа`, `Программирование`) are marked `isBuiltIn` and cannot be deleted; custom groups can be added and deleted with cascade removal of their presets.
 
 ### 13. Connection Drop on Background (Battery Optimization)

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class HidViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -160,6 +161,9 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         val fallbackName = generateDefaultPresetName()
         val presetTitle = title.trim().ifBlank { fallbackName }
         val presetDescription = description.trim().ifBlank { presetTitle }
+        val sensitivePreset = isSensitive ||
+            actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
+            actionType == PresetActionCodec.TYPE_CREDENTIAL
 
         viewModelScope.launch {
             presetRepository.addSingleActionPreset(
@@ -169,7 +173,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
                 value = value,
                 sortOrder = _uiState.value.presets.size,
                 actionType = actionType,
-                isSensitive = isSensitive || actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT
+                isSensitive = sensitivePreset
             )
         }
     }
@@ -180,6 +184,73 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             runPreset(preset.id)
         }
+    }
+
+    fun duplicatePreset(preset: PresetEntity) {
+        viewModelScope.launch {
+            presetRepository.duplicatePreset(preset.id)
+        }
+    }
+
+    fun deletePreset(preset: PresetEntity) {
+        if (preset.isBuiltIn) return
+        viewModelScope.launch {
+            presetRepository.deletePreset(preset.id)
+        }
+    }
+
+    fun requestEditPreset(preset: PresetEntity) {
+        if (preset.isBuiltIn) return
+        viewModelScope.launch {
+            val presetWithActions = presetRepository.getPresetWithActions(preset.id) ?: return@launch
+            val firstAction = presetWithActions.actions.firstOrNull()
+            val actionType = firstAction?.type ?: PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND
+            val payload = firstAction?.payloadJson?.let { JSONObject(it) } ?: JSONObject()
+            val editDraft = PresetEditDraft(
+                preset = presetWithActions.preset,
+                actionType = actionType,
+                value = when (actionType) {
+                    PresetActionCodec.TYPE_TYPE_TEXT,
+                    PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> payload.optString("text")
+                    PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND -> payload.optString("command")
+                    else -> ""
+                },
+                login = payload.optString("login"),
+                password = payload.optString("password")
+            )
+            _uiState.value = _uiState.value.copy(editingPreset = editDraft)
+        }
+    }
+
+    fun updateEditingPreset(
+        title: String,
+        description: String,
+        actionType: String,
+        value: String,
+        isSensitive: Boolean
+    ) {
+        val editingPreset = _uiState.value.editingPreset ?: return
+        val presetTitle = title.trim().ifBlank { editingPreset.preset.title }
+        val presetDescription = description.trim().ifBlank { presetTitle }
+        val sensitivePreset = isSensitive ||
+            actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
+            actionType == PresetActionCodec.TYPE_CREDENTIAL
+
+        viewModelScope.launch {
+            presetRepository.updateSingleActionPreset(
+                presetId = editingPreset.preset.id,
+                title = presetTitle,
+                description = presetDescription,
+                value = value,
+                actionType = actionType,
+                isSensitive = sensitivePreset
+            )
+            _uiState.value = _uiState.value.copy(editingPreset = null)
+        }
+    }
+
+    fun dismissEditPreset() {
+        _uiState.value = _uiState.value.copy(editingPreset = null)
     }
 
     fun confirmPendingPreset() {
@@ -295,5 +366,14 @@ data class HidUiState(
     val presets: List<PresetEntity> = emptyList(),
     val allPresets: List<PresetEntity> = emptyList(),
     val presetActionTypes: Map<Long, String> = emptyMap(),
-    val pendingSensitivePreset: PresetEntity? = null
+    val pendingSensitivePreset: PresetEntity? = null,
+    val editingPreset: PresetEditDraft? = null
+)
+
+data class PresetEditDraft(
+    val preset: PresetEntity,
+    val actionType: String,
+    val value: String,
+    val login: String,
+    val password: String
 )

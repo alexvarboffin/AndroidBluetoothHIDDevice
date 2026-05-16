@@ -11,12 +11,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.BluetoothDisabled
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.*
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.walhalla.bluetoothhiddevice.presets.PresetActionCodec
 import com.walhalla.bluetoothhiddevice.presets.PresetCategoryEntity
 import com.walhalla.bluetoothhiddevice.presets.PresetEntity
+import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +54,7 @@ fun HidScreen(
     var showPresetEditor by remember { mutableStateOf(false) }
     var showCategoryEditor by remember { mutableStateOf(false) }
     var showDeleteCategoryDialog by remember { mutableStateOf(false) }
+    var presetPendingDelete by remember { mutableStateOf<PresetEntity?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -99,6 +103,9 @@ fun HidScreen(
                     uiState = uiState,
                     onSelectCategory = viewModel::selectPresetCategory,
                     onRunPreset = viewModel::requestRunPreset,
+                    onEditPreset = viewModel::requestEditPreset,
+                    onDuplicatePreset = viewModel::duplicatePreset,
+                    onDeletePreset = { presetPendingDelete = it },
                     onAddPreset = { showPresetEditor = true },
                     onAddCategory = { showCategoryEditor = true },
                     onDeleteCategory = { showDeleteCategoryDialog = true },
@@ -134,6 +141,24 @@ fun HidScreen(
         )
     }
 
+    uiState.editingPreset?.let { editDraft ->
+        PresetEditorDialog(
+            categories = uiState.presetCategories,
+            selectedCategoryId = editDraft.preset.categoryId,
+            titleText = "Edit Preset",
+            confirmText = "Save",
+            initialTitle = editDraft.preset.title,
+            initialDescription = editDraft.preset.description,
+            initialActionType = editDraft.actionType,
+            initialValue = editDraft.value,
+            initialLogin = editDraft.login,
+            initialPassword = editDraft.password,
+            initialSensitive = editDraft.preset.isSensitive,
+            onDismiss = viewModel::dismissEditPreset,
+            onSave = viewModel::updateEditingPreset
+        )
+    }
+
     if (showCategoryEditor) {
         CategoryEditorDialog(
             onDismiss = { showCategoryEditor = false },
@@ -151,6 +176,17 @@ fun HidScreen(
             onConfirm = {
                 viewModel.deleteSelectedPresetCategory()
                 showDeleteCategoryDialog = false
+            }
+        )
+    }
+
+    presetPendingDelete?.let { preset ->
+        DeletePresetDialog(
+            preset = preset,
+            onDismiss = { presetPendingDelete = null },
+            onConfirm = {
+                viewModel.deletePreset(preset)
+                presetPendingDelete = null
             }
         )
     }
@@ -405,6 +441,9 @@ fun PresetsTab(
     uiState: HidUiState,
     onSelectCategory: (Long) -> Unit,
     onRunPreset: (PresetEntity) -> Unit,
+    onEditPreset: (PresetEntity) -> Unit,
+    onDuplicatePreset: (PresetEntity) -> Unit,
+    onDeletePreset: (PresetEntity) -> Unit,
     onAddPreset: () -> Unit,
     onAddCategory: () -> Unit,
     onDeleteCategory: () -> Unit,
@@ -486,7 +525,10 @@ fun PresetsTab(
                 preset = preset,
                 actionType = uiState.presetActionTypes[preset.id],
                 enabled = uiState.isConnected,
-                onRunPreset = { onRunPreset(preset) }
+                onRunPreset = { onRunPreset(preset) },
+                onEditPreset = { onEditPreset(preset) },
+                onDuplicatePreset = { onDuplicatePreset(preset) },
+                onDeletePreset = { onDeletePreset(preset) }
             )
         }
     }
@@ -525,7 +567,10 @@ fun PresetCard(
     preset: PresetEntity,
     actionType: String?,
     enabled: Boolean,
-    onRunPreset: () -> Unit
+    onRunPreset: () -> Unit,
+    onEditPreset: () -> Unit,
+    onDuplicatePreset: () -> Unit,
+    onDeletePreset: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -579,11 +624,43 @@ fun PresetCard(
                     }
                 }
             }
-            Button(
-                enabled = enabled,
-                onClick = onRunPreset
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text("Run")
+                Button(
+                    enabled = enabled,
+                    onClick = onRunPreset
+                ) {
+                    Text("Run")
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(
+                        enabled = !preset.isBuiltIn,
+                        onClick = onEditPreset
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = "Edit preset"
+                        )
+                    }
+                    IconButton(onClick = onDuplicatePreset) {
+                        Icon(
+                            imageVector = Icons.Filled.ContentCopy,
+                            contentDescription = "Copy preset"
+                        )
+                    }
+                    IconButton(
+                        enabled = !preset.isBuiltIn,
+                        onClick = onDeletePreset
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = "Delete preset",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
         }
     }
@@ -665,23 +742,66 @@ fun DeleteCategoryDialog(
 }
 
 @Composable
+fun DeletePresetDialog(
+    preset: PresetEntity,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete Preset?") },
+        text = {
+            Text("Delete `${preset.title}` and all actions inside it?")
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
+                )
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
 fun PresetEditorDialog(
     categories: List<PresetCategoryEntity>,
     selectedCategoryId: Long?,
+    titleText: String = "Add Preset",
+    confirmText: String = "Save",
+    initialTitle: String? = null,
+    initialDescription: String? = null,
+    initialActionType: String = PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND,
+    initialValue: String = "",
+    initialLogin: String = "",
+    initialPassword: String = "",
+    initialSensitive: Boolean = false,
     onDismiss: () -> Unit,
     onSave: (String, String, String, String, Boolean) -> Unit
 ) {
     val defaultPresetName = remember { generateDefaultPresetName() }
-    var title by remember { mutableStateOf(defaultPresetName) }
-    var description by remember { mutableStateOf(defaultPresetName) }
-    var value by remember { mutableStateOf("") }
-    var isSensitive by remember { mutableStateOf(false) }
-    var selectedActionType by remember { mutableStateOf(PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND) }
+    var title by remember(initialTitle) { mutableStateOf(initialTitle ?: defaultPresetName) }
+    var description by remember(initialDescription) { mutableStateOf(initialDescription ?: defaultPresetName) }
+    var value by remember(initialValue) { mutableStateOf(initialValue) }
+    var login by remember(initialLogin) { mutableStateOf(initialLogin) }
+    var password by remember(initialPassword) { mutableStateOf(initialPassword) }
+    var isSensitive by remember(initialSensitive) { mutableStateOf(initialSensitive) }
+    var selectedActionType by remember(initialActionType) { mutableStateOf(initialActionType) }
     var menuExpanded by remember { mutableStateOf(false) }
+    val isCredential = selectedActionType == PresetActionCodec.TYPE_CREDENTIAL
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Preset") },
+        title = { Text(titleText) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -713,34 +833,62 @@ fun PresetEditorDialog(
                                 text = { Text(actionTypeLabel(actionType)) },
                                 onClick = {
                                     selectedActionType = actionType
-                                    isSensitive = actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT || isSensitive
+                                    isSensitive = actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
+                                        actionType == PresetActionCodec.TYPE_CREDENTIAL ||
+                                        isSensitive
                                     menuExpanded = false
                                 }
                             )
                         }
                     }
                 }
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it },
-                    label = { Text("Value") },
-                    minLines = 2
-                )
+                if (isCredential) {
+                    OutlinedTextField(
+                        value = login,
+                        onValueChange = { login = it },
+                        label = { Text("Login") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password") },
+                        singleLine = true
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { value = it },
+                        label = { Text("Value") },
+                        minLines = 2
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
-                        checked = isSensitive,
-                        onCheckedChange = { isSensitive = it }
+                        checked = isSensitive || isCredential,
+                        onCheckedChange = { isSensitive = it },
+                        enabled = !isCredential
                     )
                     Text("Sensitive / require confirmation")
                 }
             }
         },
         confirmButton = {
+            val payload = if (isCredential) {
+                JSONObject()
+                    .put("login", login)
+                    .put("password", password)
+                    .toString()
+            } else {
+                value
+            }
             Button(
-                enabled = title.isNotBlank() && value.isNotBlank() && selectedCategoryId != null,
-                onClick = { onSave(title, description, selectedActionType, value, isSensitive) }
+                enabled = title.isNotBlank() &&
+                    selectedCategoryId != null &&
+                    if (isCredential) login.isNotBlank() && password.isNotBlank() else value.isNotBlank(),
+                onClick = { onSave(title, description, selectedActionType, payload, isSensitive || isCredential) }
             ) {
-                Text("Save")
+                Text(confirmText)
             }
         },
         dismissButton = {
@@ -854,13 +1002,15 @@ fun BondedDeviceRow(
 private val editorActionTypes = listOf(
     PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND,
     PresetActionCodec.TYPE_TYPE_TEXT,
-    PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT
+    PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT,
+    PresetActionCodec.TYPE_CREDENTIAL
 )
 
 private fun actionTypeLabel(actionType: String): String {
     return when (actionType) {
         PresetActionCodec.TYPE_TYPE_TEXT -> "Type text"
         PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> "Type sensitive text"
+        PresetActionCodec.TYPE_CREDENTIAL -> "Credential"
         else -> "Run Windows command"
     }
 }
@@ -869,6 +1019,7 @@ private fun presetActionIcon(actionType: String?): ImageVector {
     return when (actionType) {
         PresetActionCodec.TYPE_TYPE_TEXT -> Icons.Filled.TextFields
         PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> Icons.Filled.Lock
+        PresetActionCodec.TYPE_CREDENTIAL -> Icons.Filled.Lock
         PresetActionCodec.TYPE_KEY_COMBO,
         PresetActionCodec.TYPE_KEY_PRESS -> Icons.Filled.Keyboard
         PresetActionCodec.TYPE_DELAY -> Icons.Filled.Schedule
@@ -880,6 +1031,7 @@ private fun presetActionLabel(actionType: String?): String {
     return when (actionType) {
         PresetActionCodec.TYPE_TYPE_TEXT -> "Text input"
         PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> "Sensitive text"
+        PresetActionCodec.TYPE_CREDENTIAL -> "Credential"
         PresetActionCodec.TYPE_KEY_COMBO -> "Key combo"
         PresetActionCodec.TYPE_KEY_PRESS -> "Key press"
         PresetActionCodec.TYPE_DELAY -> "Delay"

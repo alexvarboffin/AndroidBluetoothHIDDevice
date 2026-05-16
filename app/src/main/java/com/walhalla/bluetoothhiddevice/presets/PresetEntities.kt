@@ -34,6 +34,7 @@ data class PresetEntity(
     val riskLevel: String = "normal",
     val requiresConfirmation: Boolean = false,
     val isSensitive: Boolean = false,
+    val isBuiltIn: Boolean = false,
     val sortOrder: Int,
     val createdAt: Long = System.currentTimeMillis()
 )

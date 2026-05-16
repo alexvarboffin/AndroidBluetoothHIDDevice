@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -41,6 +42,9 @@ interface PresetDao {
     @Query("SELECT * FROM preset_actions WHERE presetId = :presetId ORDER BY sortOrder")
     suspend fun getActionsForPreset(presetId: Long): List<PresetActionEntity>
 
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM presets WHERE categoryId = :categoryId")
+    suspend fun getMaxPresetSortOrder(categoryId: Long): Int
+
     @Insert
     suspend fun insertCategory(category: PresetCategoryEntity): Long
 
@@ -49,6 +53,15 @@ interface PresetDao {
 
     @Insert
     suspend fun insertPreset(preset: PresetEntity): Long
+
+    @Update
+    suspend fun updatePreset(preset: PresetEntity)
+
+    @Query("DELETE FROM presets WHERE id = :presetId AND isBuiltIn = 0")
+    suspend fun deletePreset(presetId: Long): Int
+
+    @Query("DELETE FROM preset_actions WHERE presetId = :presetId")
+    suspend fun deleteActionsForPreset(presetId: Long)
 
     @Insert
     suspend fun insertActions(actions: List<PresetActionEntity>)
@@ -61,5 +74,15 @@ interface PresetDao {
         val presetId = insertPreset(preset)
         insertActions(actions.map { it.copy(presetId = presetId) })
         return presetId
+    }
+
+    @Transaction
+    suspend fun updatePresetWithActions(
+        preset: PresetEntity,
+        actions: List<PresetActionEntity>
+    ) {
+        updatePreset(preset)
+        deleteActionsForPreset(preset.id)
+        insertActions(actions.map { it.copy(presetId = preset.id) })
     }
 }

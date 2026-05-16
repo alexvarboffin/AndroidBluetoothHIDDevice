@@ -23,12 +23,12 @@ class PresetRepository(context: Context) {
         val workId = dao.insertCategory(PresetCategoryEntity(title = "Работа", sortOrder = 1, isBuiltIn = true))
         val devId = dao.insertCategory(PresetCategoryEntity(title = "Программирование", sortOrder = 2, isBuiltIn = true))
 
-        addSingleActionPreset(homeId, "Calculator", "Windows Calculator", "calc", 0)
-        addSingleActionPreset(homeId, "Notepad", "Windows Notepad", "notepad", 1)
-        addSingleActionPreset(workId, "Firefox Profile Manager", "Open Firefox profile selector", "firefox -p", 0)
-        addSingleActionPreset(workId, "Task Manager", "Open Windows Task Manager", "taskmgr", 1)
-        addSingleActionPreset(devId, "Android Studio", "Launch Android Studio from PATH/App Paths", "studio64", 0)
-        addSingleActionPreset(devId, "Visual Studio Code", "Launch VS Code", "code", 1)
+        addSingleActionPreset(homeId, "Calculator", "Windows Calculator", "calc", 0, isBuiltIn = true)
+        addSingleActionPreset(homeId, "Notepad", "Windows Notepad", "notepad", 1, isBuiltIn = true)
+        addSingleActionPreset(workId, "Firefox Profile Manager", "Open Firefox profile selector", "firefox -p", 0, isBuiltIn = true)
+        addSingleActionPreset(workId, "Task Manager", "Open Windows Task Manager", "taskmgr", 1, isBuiltIn = true)
+        addSingleActionPreset(devId, "Android Studio", "Launch Android Studio from PATH/App Paths", "studio64", 0, isBuiltIn = true)
+        addSingleActionPreset(devId, "Visual Studio Code", "Launch VS Code", "code", 1, isBuiltIn = true)
     }
 
     suspend fun addCategory(title: String) {
@@ -55,13 +55,10 @@ class PresetRepository(context: Context) {
         value: String,
         sortOrder: Int,
         actionType: String = PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND,
-        isSensitive: Boolean = false
+        isSensitive: Boolean = false,
+        isBuiltIn: Boolean = false
     ) {
-        val action = when (actionType) {
-            PresetActionCodec.TYPE_TYPE_TEXT -> PresetAction.TypeText(value)
-            PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> PresetAction.TypeSensitiveText(value)
-            else -> PresetAction.RunWindowsCommand(value)
-        }
+        val action = actionFromValue(actionType, value)
         val preset = PresetEntity(
             categoryId = categoryId,
             title = title,
@@ -69,6 +66,7 @@ class PresetRepository(context: Context) {
             riskLevel = if (isSensitive) "sensitive" else "normal",
             requiresConfirmation = isSensitive,
             isSensitive = isSensitive,
+            isBuiltIn = isBuiltIn,
             sortOrder = sortOrder
         )
         dao.insertPresetWithActions(
@@ -83,6 +81,53 @@ class PresetRepository(context: Context) {
             preset = preset,
             actions = dao.getActionsForPreset(presetId)
         )
+    }
+
+    suspend fun updateSingleActionPreset(
+        presetId: Long,
+        title: String,
+        description: String,
+        value: String,
+        actionType: String,
+        isSensitive: Boolean
+    ): Boolean {
+        val source = getPresetWithActions(presetId) ?: return false
+        if (source.preset.isBuiltIn) return false
+
+        val action = actionFromValue(actionType, value)
+        dao.updatePresetWithActions(
+            preset = source.preset.copy(
+                title = title,
+                description = description,
+                riskLevel = if (isSensitive) "sensitive" else "normal",
+                requiresConfirmation = isSensitive,
+                isSensitive = isSensitive
+            ),
+            actions = listOf(PresetActionCodec.toEntity(presetId, action, 0))
+        )
+        return true
+    }
+
+    suspend fun duplicatePreset(presetId: Long): Boolean {
+        val source = getPresetWithActions(presetId) ?: return false
+        val nextSortOrder = dao.getMaxPresetSortOrder(source.preset.categoryId) + 1
+        dao.insertPresetWithActions(
+            preset = source.preset.copy(
+                id = 0,
+                title = "${source.preset.title} copy",
+                isBuiltIn = false,
+                sortOrder = nextSortOrder,
+                createdAt = System.currentTimeMillis()
+            ),
+            actions = source.actions.map { action ->
+                action.copy(id = 0, presetId = 0)
+            }
+        )
+        return true
+    }
+
+    suspend fun deletePreset(presetId: Long): Boolean {
+        return dao.deletePreset(presetId) > 0
     }
 
     suspend fun exportToJson(includeSensitive: Boolean): String {
@@ -110,6 +155,7 @@ class PresetRepository(context: Context) {
                     .put("riskLevel", preset.riskLevel)
                     .put("requiresConfirmation", preset.requiresConfirmation)
                     .put("isSensitive", preset.isSensitive)
+                    .put("isBuiltIn", preset.isBuiltIn)
                     .put("sortOrder", preset.sortOrder)
                     .put("createdAt", preset.createdAt)
             }))
@@ -163,19 +209,41 @@ class PresetRepository(context: Context) {
             val oldPresetId = source.getLong("id")
             val oldCategoryId = source.getLong("categoryId")
             val newCategoryId = categoryIdMap[oldCategoryId] ?: continue
+            val presetActions = actionsByPresetId[oldPresetId].orEmpty()
+            val hasSensitiveAction = presetActions.any {
+                it.type == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
+                    it.type == PresetActionCodec.TYPE_CREDENTIAL
+            }
+            val isSensitive = source.optBoolean("isSensitive") || hasSensitiveAction
             dao.insertPresetWithActions(
                 preset = PresetEntity(
                     categoryId = newCategoryId,
                     title = source.getString("title"),
                     description = source.optString("description"),
-                    riskLevel = source.optString("riskLevel", "normal"),
-                    requiresConfirmation = source.optBoolean("requiresConfirmation"),
-                    isSensitive = source.optBoolean("isSensitive"),
+                    riskLevel = if (isSensitive) "sensitive" else source.optString("riskLevel", "normal"),
+                    requiresConfirmation = source.optBoolean("requiresConfirmation") || isSensitive,
+                    isSensitive = isSensitive,
+                    isBuiltIn = false,
                     sortOrder = source.optInt("sortOrder", index),
                     createdAt = System.currentTimeMillis()
                 ),
-                actions = actionsByPresetId[oldPresetId].orEmpty()
+                actions = presetActions
             )
+        }
+    }
+
+    private fun actionFromValue(actionType: String, value: String): PresetAction {
+        return when (actionType) {
+            PresetActionCodec.TYPE_TYPE_TEXT -> PresetAction.TypeText(value)
+            PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> PresetAction.TypeSensitiveText(value)
+            PresetActionCodec.TYPE_CREDENTIAL -> {
+                val credential = JSONObject(value)
+                PresetAction.Credential(
+                    login = credential.getString("login"),
+                    password = credential.getString("password")
+                )
+            }
+            else -> PresetAction.RunWindowsCommand(value)
         }
     }
 }

@@ -14,6 +14,12 @@ class PresetExecutor(
                 is PresetAction.RunWindowsCommand -> hidDeviceManager.sendWindowsRunCommandBlocking(action.command)
                 is PresetAction.TypeText -> hidDeviceManager.sendTextBlocking(action.text)
                 is PresetAction.TypeSensitiveText -> hidDeviceManager.sendTextBlocking(action.text)
+                is PresetAction.Credential -> {
+                    hidDeviceManager.sendTextBlocking(action.login) &&
+                        hidDeviceManager.sendKeyPressBlocking("TAB") &&
+                        hidDeviceManager.sendTextBlocking(action.password) &&
+                        hidDeviceManager.sendKeyPressBlocking("ENTER")
+                }
                 is PresetAction.KeyCombo -> hidDeviceManager.sendKeyComboBlocking(action.modifier, action.key)
                 is PresetAction.KeyPress -> hidDeviceManager.sendKeyPressBlocking(action.key)
                 is PresetAction.Delay -> {
