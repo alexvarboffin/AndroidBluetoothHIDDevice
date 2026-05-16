@@ -100,8 +100,10 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 
 ### 13. Connection Drop on Background (Battery Optimization)
 - **Problem:** OS suspends Bluetooth stack/proxy when Activity is hidden, breaking the HID link.
-- **Solution (Planned):** Implement a `Foreground Service` to hold the HID proxy.
-- **User Control:** Add a toggle in the UI/Settings to enable/disable "Persistent Mode". If enabled, the app runs a Foreground Service with a notification to maintain high system priority.
+- **Solution:** `HidForegroundService` owns the single `HidDeviceManager`; `HidViewModel` binds to that service instead of creating a separate manager. When `MainActivity.onStop()` runs and a host is connected, the same service is promoted to foreground so the HID session can continue in the background.
+- **User Control:** The UI still exposes `Persistent Mode`; disabling it stops foreground mode, while active connections auto-enable background keepalive on app minimize.
+- **Permissions:** Request `POST_NOTIFICATIONS` on Android 13+ so the foreground service notification can be shown.
+- **Tools/Files:** `HidForegroundService`, `HidViewModel.keepConnectionAliveInBackground()`, `MainActivity.onStop()`, `AndroidManifest.xml`.
 
 ### 14. GitHub Publishing README
 - **Problem:** Project needed a public-facing README before GitHub publication.

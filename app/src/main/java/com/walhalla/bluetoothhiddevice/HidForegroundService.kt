@@ -15,6 +15,7 @@ class HidForegroundService : Service() {
     private val CHANNEL_ID = "HidServiceChannel"
     private val NOTIFICATION_ID = 1
     private val binder = LocalBinder()
+    private var isInForeground = false
     
     lateinit var hidManager: HidDeviceManager
         private set
@@ -30,12 +31,23 @@ class HidForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification = createNotification("HID Service is running in background")
-        startForeground(NOTIFICATION_ID, notification)
+        startForegroundMode("HID connection is kept alive in background")
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
+
+    fun startForegroundMode(content: String = "HID connection is active") {
+        val notification = createNotification(content)
+        startForeground(NOTIFICATION_ID, notification)
+        isInForeground = true
+    }
+
+    fun stopForegroundMode() {
+        if (!isInForeground) return
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        isInForeground = false
+    }
 
     private fun createNotification(content: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)

@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.walhalla.bluetoothhiddevice.presets.PresetActionCodec
@@ -27,8 +28,10 @@ import org.json.JSONObject
 class HidViewModel(application: Application) : AndroidViewModel(application) {
 
     private val TAG = "HidViewModel"
-    private var hidManager: HidDeviceManager = HidDeviceManager(application)
-    private var presetExecutor = PresetExecutor(hidManager)
+    private var hidManager: HidDeviceManager? = null
+    private var hidService: HidForegroundService? = null
+    private var isServiceBound = false
+    private var presetExecutor: PresetExecutor? = null
     private val presetRepository = PresetRepository(application)
     private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private var selectedCategoryJob: Job? = null
@@ -42,18 +45,29 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
             Log.d(TAG, "Service Bound")
             val binder = service as HidForegroundService.LocalBinder
             val srv = binder.getService()
+            hidService = srv
             hidManager = srv.hidManager
-            presetExecutor = PresetExecutor(hidManager)
+            presetExecutor = PresetExecutor(srv.hidManager)
+            isServiceBound = true
             setupStatusListener()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             Log.d(TAG, "Service Unbound")
+            isServiceBound = false
+            hidService = null
+            hidManager = null
+            presetExecutor = null
+            _uiState.value = _uiState.value.copy(
+                status = "HID Service disconnected",
+                isConnected = false,
+                connectedDeviceAddress = null
+            )
         }
     }
 
     init {
-        setupStatusListener()
+        bindHidService()
         refreshBondedDevices()
         observePresets()
         viewModelScope.launch {
@@ -62,7 +76,8 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun setupStatusListener() {
-        hidManager.setStatusListener { status, connectedDevice ->
+        val manager = hidManager ?: return
+        manager.setStatusListener { status, connectedDevice ->
             _uiState.value = _uiState.value.copy(
                 status = status,
                 isConnected = connectedDevice != null,
@@ -73,27 +88,30 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun togglePersistence(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(isPersistentMode = enabled)
         val intent = Intent(getApplication(), HidForegroundService::class.java)
         if (enabled) {
-            getApplication<Application>().startForegroundService(intent)
-            getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+            ContextCompat.startForegroundService(getApplication(), intent)
+            bindHidService()
+            _uiState.value = _uiState.value.copy(isPersistentMode = true)
         } else {
-            try {
-                getApplication<Application>().unbindService(serviceConnection)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error unbinding", e)
-            }
+            hidService?.stopForegroundMode()
             getApplication<Application>().stopService(intent)
-            hidManager = HidDeviceManager(getApplication())
-            presetExecutor = PresetExecutor(hidManager)
-            setupStatusListener()
+            _uiState.value = _uiState.value.copy(isPersistentMode = false)
         }
     }
 
     fun resume() {
+        bindHidService()
         refreshBondedDevices()
-        hidManager.refreshConnectionState()
+        hidManager?.refreshConnectionState()
+    }
+
+    fun keepConnectionAliveInBackground() {
+        if (!_uiState.value.isConnected) return
+        val intent = Intent(getApplication(), HidForegroundService::class.java)
+        ContextCompat.startForegroundService(getApplication(), intent)
+        hidService?.startForegroundMode("Connected HID session is kept alive")
+        _uiState.value = _uiState.value.copy(isPersistentMode = true)
     }
 
     @SuppressLint("MissingPermission")
@@ -103,27 +121,27 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun makeDiscoverable(activity: android.app.Activity) {
-        hidManager.requestDiscoverable(activity)
+        hidManager?.requestDiscoverable(activity)
     }
 
     fun connect(device: BluetoothDevice) {
-        hidManager.connect(device)
+        hidManager?.connect(device)
     }
 
     fun disconnect(device: BluetoothDevice) {
-        hidManager.disconnect(device)
+        hidManager?.disconnect(device)
     }
 
     fun sendText(text: String) {
-        hidManager.sendString(text)
+        hidManager?.sendString(text)
     }
 
     fun openCalculatorOnHost() {
-        hidManager.sendOpenCalculatorShortcut()
+        hidManager?.sendOpenCalculatorShortcut()
     }
 
     fun runWindowsCommandPreset(command: String) {
-        hidManager.sendWindowsRunCommand(command)
+        hidManager?.sendWindowsRunCommand(command)
     }
 
     fun selectPresetCategory(categoryId: Long) {
@@ -281,7 +299,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun forceReset() {
-        hidManager.forceReset()
+        hidManager?.forceReset()
     }
 
     fun checkBluetoothEnabled(): Boolean {
@@ -338,11 +356,29 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val preset = presetRepository.getPresetWithActions(presetId) ?: return@launch
             val actions = preset.actions.map { PresetActionCodec.fromEntity(it) }
-            val success = presetExecutor.execute(actions)
+            val success = presetExecutor?.execute(actions) == true
             if (!success) {
                 _uiState.value = _uiState.value.copy(status = "Preset failed: no HID connection or unsupported key")
             }
         }
+    }
+
+    override fun onCleared() {
+        if (isServiceBound) {
+            runCatching {
+                getApplication<Application>().unbindService(serviceConnection)
+            }.onFailure { error ->
+                Log.e(TAG, "Error unbinding HID service", error)
+            }
+            isServiceBound = false
+        }
+        super.onCleared()
+    }
+
+    private fun bindHidService() {
+        if (isServiceBound) return
+        val intent = Intent(getApplication(), HidForegroundService::class.java)
+        getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
     private fun generateDefaultPresetName(): String {

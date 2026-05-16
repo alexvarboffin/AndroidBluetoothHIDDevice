@@ -13,7 +13,7 @@ Android app that turns a phone into a Bluetooth HID keyboard for a paired host d
 - Built-in seed presets for common Windows commands such as Calculator, Notepad, Task Manager, Firefox profile manager, Android Studio, and VS Code.
 - Sensitive preset support with confirmation before execution.
 - Credential preset type: type login, press `Tab`, type password, press `Enter`.
-- Optional foreground service mode for keeping the HID session alive in the background.
+- Foreground service keepalive for preserving an active HID session while the app is in the background.
 
 ## Requirements
 
@@ -60,6 +60,7 @@ The project currently uses:
 4. Pair the phone from the host device Bluetooth settings.
 5. Connect to the paired host in the app.
 6. Use `Send Test 'A' Key`, `Win+R calc`, or the `Presets` tab.
+7. After connecting, you can minimize the app; it promotes the HID service to foreground mode so you can return and continue using presets.
 
 If the host keeps stale HID behavior after descriptor experiments, remove the Bluetooth device on the host and pair it again.
 

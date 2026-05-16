@@ -52,7 +52,9 @@
 - [x] GitHub publishing: добавлен `README.md` с описанием проекта, возможностей, требований, сборки, использования, ограничений и ссылок на внутреннюю документацию.
 - [x] UI: `Current Status` перенесён из отдельной карточки в `TopAppBar` как subtext под названием приложения; цвет subtext отражает connected/error/neutral состояние.
 - [x] UI: preset item cards сделаны компактнее: меньше padding/spacing, короткая кнопка `Run`, action icons уменьшены, description обрезается в одну строку.
+- [x] Background keepalive: UI теперь bind'ится к `HidForegroundService`, сервис владеет единственным `HidDeviceManager`, а `MainActivity.onStop()` переводит уже подключённую HID-сессию в foreground service, чтобы связь не обрывалась при сворачивании.
 - [ ] Проверка на устройстве: добавить custom preset, экспортировать JSON, импортировать обратно, запустить обычный и sensitive preset.
+- [ ] Проверка на устройстве: подключиться к Windows host, свернуть приложение, подождать 1-2 минуты, вернуться и запустить preset без переподключения.
 
 Файлы для проверки:
 - `app/src/main/java/com/walhalla/bluetoothhiddevice/HidScreen.kt`
@@ -72,6 +74,7 @@
 - [ ] Проверить кнопку `Win+R calc` на Windows host с фактическим Bluetooth HID подключением.
 - [ ] Проверить toolbar presets на Windows host: `firefox -p`, `studio64`, `code`, `taskmgr`.
 - [ ] Проверить RoomDB preset flow: add, run, sensitive confirm, JSON export, JSON import.
+- [ ] Проверить background keepalive на разных Android versions/OEM battery modes; при необходимости добавить подсказку про отключение battery optimization.
 - [ ] Следующий этап: реализовать третью вкладку `Keyboard/Touchpad` по отдельному плану, если пользователь снова подтвердит.
 - [ ] Проверить UX для `STATE_CONNECTING` и `STATE_DISCONNECTING`: при необходимости добавить промежуточное состояние строки.
 - [ ] Решить deprecated warning для `BluetoothAdapter.getDefaultAdapter()` без ломки minSdk/API behavior.
