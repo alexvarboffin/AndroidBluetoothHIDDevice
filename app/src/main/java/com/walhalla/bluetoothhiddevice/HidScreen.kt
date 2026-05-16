@@ -1,6 +1,8 @@
 package com.walhalla.bluetoothhiddevice
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -163,6 +165,7 @@ fun InstructionsSection() {
 @SuppressLint("MissingPermission")
 @Composable
 fun BondedDeviceRow(device: android.bluetooth.BluetoothDevice, onConnect: () -> Unit) {
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
