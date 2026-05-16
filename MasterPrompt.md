@@ -72,7 +72,30 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Solution:** Track the connected device address in `HidUiState`, pass row-level `isConnected` into `BondedDeviceRow`, and switch the button between `Connect` and `Disconnect`.
 - **Tools/Files:** `HidDeviceManager.disconnect()`, `HidViewModel.connectedDeviceAddress`, `BondedDeviceRow`, and `material-icons-extended` for Bluetooth action icons.
 
-### 10. Connection Drop on Background (Battery Optimization)
+### 10. Windows Run Command Shortcut
+- **Problem:** Need a test action that proves modifier-key HID reports work, not only plain character typing.
+- **Solution:** Added a UI button next to `Send Test 'A' Key` that sends `Win+R`, waits briefly, types `calc`, then presses `Enter`.
+- **Tools/Files:** `HidDeviceManager.sendOpenCalculatorShortcut()`, Left GUI modifier `0x08`, `KEY_R = 0x15`, `HidViewModel.openCalculatorOnHost()`, and `HidScreen` action row.
+- **Note:** This is Windows-host specific. On non-Windows hosts it may open a different launcher/search UI or do nothing.
+
+### 11. Toolbar Preset Menu
+- **Problem:** One hardcoded calculator shortcut does not scale to multiple host actions such as Firefox profile manager, Android Studio, and system tools.
+- **Solution:** Added a toolbar `Command Presets` menu backed by RoomDB presets instead of hardcoded lists.
+- **Tools/Files:** `HostCommandPresetMenu`, `PresetRepository`, `HidViewModel.requestRunPreset()`, and `HidDeviceManager.sendWindowsRunCommand()`.
+- **Note:** Presets use `Win+R` and typed commands, so results depend on the Windows host, installed apps, and PATH/App Paths registration.
+
+### 12. RoomDB Preset System
+- **Problem:** Hardcoded command presets cannot support user-defined categories like Home/Work/Programming, login/password typing, normal text macros, import/export, or persistent editing.
+- **Solution:** Added a RoomDB-backed preset system with `PresetCategory -> Preset -> PresetAction`. UI has a `Presets` tab, category chips, preset cards, add dialog, sensitive confirmation, and JSON import/export.
+- **Tools/Files:** `presets/*`, `PresetRepository`, `PresetExecutor`, `HidScreen` Presets tab, `MainActivity` document launchers, Room/KSP Gradle dependencies.
+- **Build note:** AGP 9 built-in Kotlin requires `android.disallowKotlinSourceSets=false` for current KSP generated sources; do not remove unless KSP/AGP setup is changed.
+- **Security decision:** Per user decision, first-stage sensitive values can be stored in RoomDB as plaintext, but they are marked `isSensitive`, require confirmation before execution, and warn before export.
+- **Action model:** Initial action types are `RunWindowsCommand`, `TypeText`, `TypeSensitiveText`, `KeyCombo`, `KeyPress`, and `Delay`.
+- **UX rule:** New preset `title` and `description` fields must be prefilled with a generated default like `Preset-123`; ViewModel also applies the same fallback if blanks are submitted.
+- **UX rule:** Preset list items must show a Material icon for the first action type, so users can distinguish command launch, text input, sensitive text, key actions, and delays at a glance.
+- **Category rule:** Preset categories are user-manageable groups displayed as two-row horizontally scrollable chips. Built-in groups (`Дом`, `Работа`, `Программирование`) are marked `isBuiltIn` and cannot be deleted; custom groups can be added and deleted with cascade removal of their presets.
+
+### 13. Connection Drop on Background (Battery Optimization)
 - **Problem:** OS suspends Bluetooth stack/proxy when Activity is hidden, breaking the HID link.
 - **Solution (Planned):** Implement a `Foreground Service` to hold the HID proxy.
 - **User Control:** Add a toggle in the UI/Settings to enable/disable "Persistent Mode". If enabled, the app runs a Foreground Service with a notification to maintain high system priority.
@@ -87,6 +110,7 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Identity:** SDP name "HID Keyboard", subclass `0x40` (Keyboard).
 - **Report Transmission:** `sendReport` (ID 1, 8-byte array). 
     - `report[0]`: Modifiers (Shift=0x02).
+    - `report[0]`: Left GUI / Windows modifier (Win=0x08).
     - `report[2]`: Usage ID (A=0x04, etc.).
 
 ### Lifecycle Guidelines

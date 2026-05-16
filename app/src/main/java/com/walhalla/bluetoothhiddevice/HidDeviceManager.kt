@@ -186,29 +186,123 @@ class HidDeviceManager(private val context: Context) {
     fun sendString(text: String) {
         val device = connectedDevice ?: return
         Log.d(TAG, "Typing string: $text")
-        
+
         Thread {
-            for (char in text) {
-                val (keyCode, shift) = charToKeyCode(char)
-                if (keyCode != 0.toByte()) {
-                    sendKey(device, keyCode, shift)
-                    Thread.sleep(20) // Small delay between keys
-                }
-            }
+            sendTextReport(device, text)
         }.start()
     }
 
     @SuppressLint("MissingPermission")
+    fun sendOpenCalculatorShortcut() {
+        sendWindowsRunCommand("calc")
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendWindowsRunCommand(command: String) {
+        val device = connectedDevice ?: return
+        Log.d(TAG, "Running Windows command via Win+R: $command")
+
+        Thread {
+            sendWindowsRunCommandReport(device, command)
+        }.start()
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendTextBlocking(text: String): Boolean {
+        val device = connectedDevice ?: return false
+        sendTextReport(device, text)
+        return true
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendKeyPressBlocking(keyName: String): Boolean {
+        val device = connectedDevice ?: return false
+        val keyCode = keyNameToUsageId(keyName) ?: return false
+        sendKey(device, keyCode, 0.toByte())
+        return true
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendKeyComboBlocking(modifierName: String, keyName: String): Boolean {
+        val device = connectedDevice ?: return false
+        val modifier = modifierNameToByte(modifierName) ?: return false
+        val keyCode = keyNameToUsageId(keyName) ?: return false
+        sendKey(device, keyCode, modifier)
+        return true
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendWindowsRunCommandBlocking(command: String): Boolean {
+        val device = connectedDevice ?: return false
+        sendWindowsRunCommandReport(device, command)
+        return true
+    }
+
+    @SuppressLint("MissingPermission")
     private fun sendKey(device: BluetoothDevice, keyCode: Byte, shift: Boolean) {
+        sendKey(device, keyCode, if (shift) MOD_LEFT_SHIFT else 0.toByte())
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun sendKey(device: BluetoothDevice, keyCode: Byte, modifier: Byte) {
         val report = ByteArray(8)
-        if (shift) report[0] = 0x02 // Left Shift modifier
+        report[0] = modifier
         report[2] = keyCode
-        
+
         bluetoothHidDevice?.sendReport(device, 1, report) // Press
-        
+
         report[0] = 0
         report[2] = 0
         bluetoothHidDevice?.sendReport(device, 1, report) // Release
+    }
+
+    private fun sendTextReport(device: BluetoothDevice, text: String) {
+        for (char in text) {
+            val (keyCode, shift) = charToKeyCode(char)
+            if (keyCode != 0.toByte()) {
+                sendKey(device, keyCode, shift)
+                Thread.sleep(20)
+            }
+        }
+    }
+
+    private fun sendWindowsRunCommandReport(device: BluetoothDevice, command: String) {
+        sendKey(device, KEY_R, MOD_LEFT_GUI)
+        Thread.sleep(400)
+        sendTextReport(device, "$command\n")
+    }
+
+    private fun modifierNameToByte(name: String): Byte? {
+        return when (name.uppercase()) {
+            "SHIFT" -> MOD_LEFT_SHIFT
+            "CTRL", "CONTROL" -> MOD_LEFT_CTRL
+            "ALT" -> MOD_LEFT_ALT
+            "WIN", "GUI", "META" -> MOD_LEFT_GUI
+            else -> null
+        }
+    }
+
+    private fun keyNameToUsageId(name: String): Byte? {
+        val upper = name.uppercase()
+        if (upper.length == 1) {
+            val char = upper.first()
+            if (char in 'A'..'Z' || char in '0'..'9') {
+                return charToKeyCode(char.lowercaseChar()).first
+            }
+        }
+        return when (upper) {
+            "ENTER" -> 0x28.toByte()
+            "ESC", "ESCAPE" -> 0x29.toByte()
+            "BACKSPACE" -> 0x2A.toByte()
+            "TAB" -> 0x2B.toByte()
+            "SPACE" -> 0x2C.toByte()
+            "DELETE" -> 0x4C.toByte()
+            "RIGHT" -> 0x4F.toByte()
+            "LEFT" -> 0x50.toByte()
+            "DOWN" -> 0x51.toByte()
+            "UP" -> 0x52.toByte()
+            else -> null
+        }
     }
 
     private fun charToKeyCode(char: Char): Pair<Byte, Boolean> {
@@ -238,6 +332,12 @@ class HidDeviceManager(private val context: Context) {
     }
 
     companion object {
+        private const val MOD_LEFT_CTRL: Byte = 0x01
+        private const val MOD_LEFT_SHIFT: Byte = 0x02
+        private const val MOD_LEFT_ALT: Byte = 0x04
+        private const val MOD_LEFT_GUI: Byte = 0x08
+        private const val KEY_R: Byte = 0x15
+
         // Minimal Keyboard Report Descriptor
         private val HID_REPORT_DESCRIPTOR = byteArrayOf(
             0x05.toByte(), 0x01.toByte(), // Usage Page (Generic Desktop)

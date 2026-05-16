@@ -18,6 +18,7 @@ import com.walhalla.bluetoothhiddevice.ui.theme.BluetoothHIDDeviceTheme
 class MainActivity : ComponentActivity() {
 
     private val viewModel: HidViewModel by viewModels()
+    private var pendingPresetExportJson: String? = null
 
     private val enableBluetoothLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -36,6 +37,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val importPresetsLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            val json = inputStream.bufferedReader().use { it.readText() }
+            viewModel.importPresetsJson(json)
+        }
+    }
+
+    private val exportPresetsLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val json = pendingPresetExportJson ?: return@registerForActivityResult
+        pendingPresetExportJson = null
+        if (uri == null) return@registerForActivityResult
+        contentResolver.openOutputStream(uri)?.use { outputStream ->
+            outputStream.write(json.toByteArray())
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.DEBUG) {
@@ -49,7 +71,14 @@ class MainActivity : ComponentActivity() {
                 HidScreen(
                     viewModel = viewModel,
                     onEnableBluetooth = { checkBluetoothState() },
-                    onMakeDiscoverable = { viewModel.makeDiscoverable(this) }
+                    onMakeDiscoverable = { viewModel.makeDiscoverable(this) },
+                    onImportPresets = { importPresetsLauncher.launch(arrayOf("application/json")) },
+                    onExportPresets = { includeSensitive ->
+                        viewModel.exportPresetsJson(includeSensitive) { json ->
+                            pendingPresetExportJson = json
+                            exportPresetsLauncher.launch("hid-presets.json")
+                        }
+                    }
                 )
             }
         }
