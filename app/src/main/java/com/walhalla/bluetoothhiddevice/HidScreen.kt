@@ -2,6 +2,7 @@ package com.walhalla.bluetoothhiddevice
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.ContentCopy
@@ -29,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -493,6 +497,10 @@ fun PresetsTab(
     onImportPresets: () -> Unit,
     onExportPresets: () -> Unit
 ) {
+    var viewLayoutName by rememberSaveable { mutableStateOf(PresetViewLayout.LIST.name) }
+    val viewLayout = remember(viewLayoutName) { PresetViewLayout.valueOf(viewLayoutName) }
+    val onViewLayoutSelected: (PresetViewLayout) -> Unit = { viewLayoutName = it.name }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -556,6 +564,13 @@ fun PresetsTab(
         }
     }
 
+    if (uiState.selectedPresetCategoryId != null) {
+        PresetViewLayoutSwitcher(
+            selectedLayout = viewLayout,
+            onLayoutSelected = onViewLayoutSelected
+        )
+    }
+
     if (uiState.presets.isEmpty()) {
         Text(
             text = "No presets in this category yet.",
@@ -563,16 +578,46 @@ fun PresetsTab(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     } else {
-        uiState.presets.forEach { preset ->
-            PresetCard(
-                preset = preset,
-                actionType = uiState.presetActionTypes[preset.id],
-                enabled = uiState.isConnected,
-                onRunPreset = { onRunPreset(preset) },
-                onEditPreset = { onEditPreset(preset) },
-                onDuplicatePreset = { onDuplicatePreset(preset) },
-                onDeletePreset = { onDeletePreset(preset) }
-            )
+        when (viewLayout) {
+            PresetViewLayout.LIST -> {
+                uiState.presets.forEach { preset ->
+                    PresetListCard(
+                        preset = preset,
+                        actionType = uiState.presetActionTypes[preset.id],
+                        enabled = uiState.isConnected,
+                        onRunPreset = { onRunPreset(preset) },
+                        onEditPreset = { onEditPreset(preset) },
+                        onDuplicatePreset = { onDuplicatePreset(preset) },
+                        onDeletePreset = { onDeletePreset(preset) }
+                    )
+                }
+            }
+            PresetViewLayout.GRID_2,
+            PresetViewLayout.GRID_3 -> {
+                val columns = if (viewLayout == PresetViewLayout.GRID_2) 2 else 3
+                uiState.presets.chunked(columns).forEach { rowPresets ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowPresets.forEach { preset ->
+                            PresetGridCard(
+                                modifier = Modifier.weight(1f),
+                                preset = preset,
+                                actionType = uiState.presetActionTypes[preset.id],
+                                enabled = uiState.isConnected,
+                                onRunPreset = { onRunPreset(preset) },
+                                onEditPreset = { onEditPreset(preset) },
+                                onDuplicatePreset = { onDuplicatePreset(preset) },
+                                onDeletePreset = { onDeletePreset(preset) }
+                            )
+                        }
+                        repeat(columns - rowPresets.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -605,8 +650,159 @@ fun PresetCategoryChips(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PresetCard(
+private fun PresetViewLayoutSwitcher(
+    selectedLayout: PresetViewLayout,
+    onLayoutSelected: (PresetViewLayout) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        SegmentedButton(
+            selected = selectedLayout == PresetViewLayout.LIST,
+            onClick = { onLayoutSelected(PresetViewLayout.LIST) },
+            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+            icon = { Icon(Icons.Filled.ViewList, contentDescription = null) },
+            label = { Text("List") }
+        )
+        SegmentedButton(
+            selected = selectedLayout == PresetViewLayout.GRID_2,
+            onClick = { onLayoutSelected(PresetViewLayout.GRID_2) },
+            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+            icon = { Icon(Icons.Filled.ViewModule, contentDescription = null) },
+            label = { Text("2 cols") }
+        )
+        SegmentedButton(
+            selected = selectedLayout == PresetViewLayout.GRID_3,
+            onClick = { onLayoutSelected(PresetViewLayout.GRID_3) },
+            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+            icon = { Icon(Icons.Filled.Apps, contentDescription = null) },
+            label = { Text("3 cols") }
+        )
+    }
+}
+
+@Composable
+fun PresetGridCard(
+    preset: PresetEntity,
+    actionType: String?,
+    enabled: Boolean,
+    onRunPreset: () -> Unit,
+    onEditPreset: () -> Unit,
+    onDuplicatePreset: () -> Unit,
+    onDeletePreset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val contentColor = if (preset.isSensitive) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Card(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clickable(enabled = enabled, onClick = onRunPreset),
+        colors = CardDefaults.cardColors(
+            containerColor = if (preset.isSensitive) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            }
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+            IconButton(
+                onClick = { menuExpanded = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = "Preset actions",
+                    modifier = Modifier.size(18.dp),
+                    tint = contentColor
+                )
+            }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Run") },
+                    enabled = enabled,
+                    onClick = {
+                        menuExpanded = false
+                        onRunPreset()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Edit") },
+                    enabled = !preset.isBuiltIn,
+                    onClick = {
+                        menuExpanded = false
+                        onEditPreset()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Copy") },
+                    onClick = {
+                        menuExpanded = false
+                        onDuplicatePreset()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    enabled = !preset.isBuiltIn,
+                    onClick = {
+                        menuExpanded = false
+                        onDeletePreset()
+                    }
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = presetActionIcon(actionType),
+                    contentDescription = presetActionLabel(actionType),
+                    modifier = Modifier.size(28.dp),
+                    tint = if (preset.isSensitive) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = preset.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = contentColor
+                )
+                if (preset.isSensitive) {
+                    Text(
+                        text = "Sensitive",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PresetListCard(
     preset: PresetEntity,
     actionType: String?,
     enabled: Boolean,
@@ -1163,6 +1359,12 @@ fun BondedDeviceRow(
             }
         }
     }
+}
+
+private enum class PresetViewLayout {
+    LIST,
+    GRID_2,
+    GRID_3
 }
 
 private val editorActionTypes = listOf(
