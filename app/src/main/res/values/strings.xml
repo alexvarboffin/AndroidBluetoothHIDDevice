@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Bluetooth HID Device</string>
+    <string name="notification_channel_name">HID Service Channel</string>
+    <string name="notification_title">Bluetooth HID Device</string>
+    <string name="notification_action_disconnect">Disconnect</string>
+    <string name="notification_action_stop">Stop service</string>
+    <string name="notification_action_calculator">Calculator</string>
 </resources>

@@ -50,6 +50,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
             presetExecutor = PresetExecutor(srv.hidManager)
             isServiceBound = true
             setupStatusListener()
+            refreshPersistentModeState()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -61,7 +62,8 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(
                 status = "HID Service disconnected",
                 isConnected = false,
-                connectedDeviceAddress = null
+                connectedDeviceAddress = null,
+                isPersistentMode = false
             )
         }
     }
@@ -104,6 +106,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         bindHidService()
         refreshBondedDevices()
         hidManager?.refreshConnectionState()
+        refreshPersistentModeState()
     }
 
     fun keepConnectionAliveInBackground() {
@@ -376,9 +379,19 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun bindHidService() {
-        if (isServiceBound) return
+        if (isServiceBound) {
+            refreshPersistentModeState()
+            return
+        }
         val intent = Intent(getApplication(), HidForegroundService::class.java)
         getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    private fun refreshPersistentModeState() {
+        val isActive = hidService?.isForegroundModeActive() == true
+        if (_uiState.value.isPersistentMode != isActive) {
+            _uiState.value = _uiState.value.copy(isPersistentMode = isActive)
+        }
     }
 
     private fun generateDefaultPresetName(): String {

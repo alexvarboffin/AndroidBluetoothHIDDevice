@@ -44,12 +44,20 @@ class HidDeviceManager(private val context: Context) {
     }
 
     private var onStatusChanged: ((String, BluetoothDevice?) -> Unit)? = null
+    private var onConnectionChanged: ((String, Boolean) -> Unit)? = null
 
     fun setStatusListener(listener: (String, BluetoothDevice?) -> Unit) {
         onStatusChanged = listener
         // Force refresh when listener attaches (e.g., on app resume)
         refreshConnectionState()
     }
+
+    fun setConnectionListener(listener: (String, Boolean) -> Unit) {
+        onConnectionChanged = listener
+        refreshConnectionState()
+    }
+
+    fun isConnected(): Boolean = connectedDevice != null
 
     @SuppressLint("MissingPermission")
     fun refreshConnectionState() {
@@ -94,6 +102,7 @@ class HidDeviceManager(private val context: Context) {
     private fun updateStatus(status: String) {
         mainHandler.post {
             onStatusChanged?.invoke(status, connectedDevice)
+            onConnectionChanged?.invoke(status, connectedDevice != null)
         }
     }
 
@@ -188,6 +197,13 @@ class HidDeviceManager(private val context: Context) {
         }
         Log.d(TAG, "Disconnecting from ${device.name}")
         bluetoothHidDevice?.disconnect(device)
+    }
+
+    @SuppressLint("MissingPermission")
+    fun disconnectCurrent(): Boolean {
+        val device = connectedDevice ?: return false
+        disconnect(device)
+        return true
     }
 
     @SuppressLint("MissingPermission")
