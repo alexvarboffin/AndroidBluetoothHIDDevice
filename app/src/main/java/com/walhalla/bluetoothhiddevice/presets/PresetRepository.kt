@@ -17,18 +17,84 @@ class PresetRepository(context: Context) {
     }
 
     suspend fun ensureSeedData() {
-        if (dao.getCategoryCount() > 0) return
+        ensureBuiltInCategory("Дом", sortOrder = 0) { homeId ->
+            ensureBuiltInCommandPreset(homeId, "Calculator", "Windows Calculator", "calc", 0)
+            ensureBuiltInCommandPreset(homeId, "Notepad", "Windows Notepad", "notepad", 1)
+        }
+        ensureBuiltInCategory("Работа", sortOrder = 1) { workId ->
+            ensureBuiltInCommandPreset(workId, "Firefox Profile Manager", "Open Firefox profile selector", "firefox -p", 0)
+            ensureBuiltInCommandPreset(workId, "Task Manager", "Open Windows Task Manager", "taskmgr", 1)
+        }
+        ensureBuiltInCategory("Программирование", sortOrder = 2) { devId ->
+            ensureBuiltInCommandPreset(devId, "Android Studio", "Launch Android Studio from PATH/App Paths", "studio64", 0)
+            ensureBuiltInCommandPreset(devId, "Visual Studio Code", "Launch VS Code", "code", 1)
+        }
+        ensureBuiltInCategory("Cursor IDE", sortOrder = 3) { cursorId ->
+            ensureBuiltInShortcutPreset(cursorId, "AI Chat", "Open AI Chat (Ctrl+L)", "ctrl+l", 0)
+            ensureBuiltInShortcutPreset(cursorId, "Inline Edit", "Inline AI edit (Ctrl+K)", "ctrl+k", 1)
+            ensureBuiltInShortcutPreset(cursorId, "Agent/Composer", "Open Agent / Composer (Ctrl+I)", "ctrl+i", 2)
+            ensureBuiltInShortcutPreset(cursorId, "Accept Change", "Accept suggestion or inline change (Tab)", "tab", 3)
+            ensureBuiltInShortcutPreset(cursorId, "Reject Change", "Reject or dismiss (Escape)", "escape", 4)
+            ensureBuiltInShortcutPreset(cursorId, "Accept All", "Accept all suggested changes (Ctrl+Enter)", "ctrl+enter", 5)
+            ensureBuiltInShortcutPreset(cursorId, "Next Diff", "Next chat / change (Ctrl+])", "ctrl+]", 6)
+            ensureBuiltInShortcutPreset(cursorId, "Prev Diff", "Previous chat / change (Ctrl+[)", "ctrl+[", 7)
+            ensureBuiltInShortcutPreset(cursorId, "Terminal", "Toggle integrated terminal (Ctrl+`)", "ctrl+`", 8)
+            ensureBuiltInShortcutPreset(cursorId, "Command Palette", "Command palette (Ctrl+Shift+P)", "ctrl+shift+p", 9)
+            ensureBuiltInShortcutPreset(cursorId, "Quick Open", "Quick open file (Ctrl+P)", "ctrl+p", 10)
+            ensureBuiltInShortcutPreset(cursorId, "New Chat", "New chat (Ctrl+N)", "ctrl+n", 11)
+        }
+    }
 
-        val homeId = dao.insertCategory(PresetCategoryEntity(title = "Дом", sortOrder = 0, isBuiltIn = true))
-        val workId = dao.insertCategory(PresetCategoryEntity(title = "Работа", sortOrder = 1, isBuiltIn = true))
-        val devId = dao.insertCategory(PresetCategoryEntity(title = "Программирование", sortOrder = 2, isBuiltIn = true))
+    private suspend fun ensureBuiltInCategory(
+        title: String,
+        sortOrder: Int,
+        block: suspend (Long) -> Unit
+    ) {
+        val categoryId = dao.getCategoryByTitle(title)?.id
+            ?: dao.insertCategory(
+                PresetCategoryEntity(
+                    title = title,
+                    sortOrder = sortOrder,
+                    isBuiltIn = true
+                )
+            )
+        block(categoryId)
+    }
 
-        addSingleActionPreset(homeId, "Calculator", "Windows Calculator", "calc", 0, isBuiltIn = true)
-        addSingleActionPreset(homeId, "Notepad", "Windows Notepad", "notepad", 1, isBuiltIn = true)
-        addSingleActionPreset(workId, "Firefox Profile Manager", "Open Firefox profile selector", "firefox -p", 0, isBuiltIn = true)
-        addSingleActionPreset(workId, "Task Manager", "Open Windows Task Manager", "taskmgr", 1, isBuiltIn = true)
-        addSingleActionPreset(devId, "Android Studio", "Launch Android Studio from PATH/App Paths", "studio64", 0, isBuiltIn = true)
-        addSingleActionPreset(devId, "Visual Studio Code", "Launch VS Code", "code", 1, isBuiltIn = true)
+    private suspend fun ensureBuiltInCommandPreset(
+        categoryId: Long,
+        title: String,
+        description: String,
+        command: String,
+        sortOrder: Int
+    ) {
+        if (dao.countPresetsInCategory(categoryId, title) > 0) return
+        addSingleActionPreset(
+            categoryId = categoryId,
+            title = title,
+            description = description,
+            value = command,
+            sortOrder = sortOrder,
+            isBuiltIn = true
+        )
+    }
+
+    private suspend fun ensureBuiltInShortcutPreset(
+        categoryId: Long,
+        title: String,
+        description: String,
+        shortcut: String,
+        sortOrder: Int
+    ) {
+        if (dao.countPresetsInCategory(categoryId, title) > 0) return
+        addKeyShortcutPreset(
+            categoryId = categoryId,
+            title = title,
+            description = description,
+            shortcut = shortcut,
+            sortOrder = sortOrder,
+            isBuiltIn = true
+        )
     }
 
     suspend fun addCategory(title: String) {
@@ -59,6 +125,45 @@ class PresetRepository(context: Context) {
         isBuiltIn: Boolean = false
     ) {
         val action = actionFromValue(actionType, value)
+        insertPresetWithAction(
+            categoryId = categoryId,
+            title = title,
+            description = description,
+            action = action,
+            sortOrder = sortOrder,
+            isSensitive = isSensitive,
+            isBuiltIn = isBuiltIn
+        )
+    }
+
+    suspend fun addKeyShortcutPreset(
+        categoryId: Long,
+        title: String,
+        description: String,
+        shortcut: String,
+        sortOrder: Int,
+        isBuiltIn: Boolean = false
+    ) {
+        val action = PresetShortcutParser.parse(shortcut)
+        insertPresetWithAction(
+            categoryId = categoryId,
+            title = title,
+            description = description,
+            action = action,
+            sortOrder = sortOrder,
+            isBuiltIn = isBuiltIn
+        )
+    }
+
+    private suspend fun insertPresetWithAction(
+        categoryId: Long,
+        title: String,
+        description: String,
+        action: PresetAction,
+        sortOrder: Int,
+        isSensitive: Boolean = false,
+        isBuiltIn: Boolean = false
+    ) {
         val preset = PresetEntity(
             categoryId = categoryId,
             title = title,
