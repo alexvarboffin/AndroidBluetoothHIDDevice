@@ -18,6 +18,7 @@ import com.walhalla.bluetoothhiddevice.presets.PresetCategoryEntity
 import com.walhalla.bluetoothhiddevice.presets.PresetEntity
 import com.walhalla.bluetoothhiddevice.presets.PresetExecutor
 import com.walhalla.bluetoothhiddevice.presets.PresetRepository
+import com.walhalla.bluetoothhiddevice.presets.PresetShortcutDraft
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -225,15 +226,26 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val presetWithActions = presetRepository.getPresetWithActions(preset.id) ?: return@launch
             val firstAction = presetWithActions.actions.firstOrNull()
-            val actionType = firstAction?.type ?: PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND
+            val actionType = when (firstAction?.type) {
+                PresetActionCodec.TYPE_KEY_COMBO,
+                PresetActionCodec.TYPE_KEY_PRESS -> PresetActionCodec.TYPE_KEYBOARD_SHORTCUT
+                else -> firstAction?.type ?: PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND
+            }
             val payload = firstAction?.payloadJson?.let { JSONObject(it) } ?: JSONObject()
             val editDraft = PresetEditDraft(
                 preset = presetWithActions.preset,
                 actionType = actionType,
-                value = when (actionType) {
+                value = when (firstAction?.type) {
                     PresetActionCodec.TYPE_TYPE_TEXT,
                     PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> payload.optString("text")
                     PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND -> payload.optString("command")
+                    PresetActionCodec.TYPE_KEY_COMBO,
+                    PresetActionCodec.TYPE_KEY_PRESS -> {
+                        firstAction?.let { PresetActionCodec.fromEntity(it) }
+                            ?.let(PresetShortcutDraft::fromAction)
+                            ?.toShortcutString()
+                            .orEmpty()
+                    }
                     else -> ""
                 },
                 login = payload.optString("login"),

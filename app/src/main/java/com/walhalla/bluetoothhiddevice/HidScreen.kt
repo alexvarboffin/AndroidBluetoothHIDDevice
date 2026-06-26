@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothDevice
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -32,12 +34,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.walhalla.bluetoothhiddevice.presets.PresetActionCodec
 import com.walhalla.bluetoothhiddevice.presets.PresetCategoryEntity
 import com.walhalla.bluetoothhiddevice.presets.PresetEntity
+import com.walhalla.bluetoothhiddevice.presets.PresetShortcutDraft
+import com.walhalla.bluetoothhiddevice.presets.ShortcutDraft
+import com.walhalla.bluetoothhiddevice.presets.ShortcutKeyGroup
+import com.walhalla.bluetoothhiddevice.presets.ShortcutKeys
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -830,6 +837,73 @@ fun DeletePresetDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ShortcutPicker(
+    draft: ShortcutDraft,
+    onDraftChange: (ShortcutDraft) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var selectedKeyGroup by remember { mutableStateOf(ShortcutKeyGroup.COMMON) }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Modifiers", style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = draft.ctrl,
+                onClick = { onDraftChange(draft.copy(ctrl = !draft.ctrl)) },
+                label = { Text("Ctrl") }
+            )
+            FilterChip(
+                selected = draft.shift,
+                onClick = { onDraftChange(draft.copy(shift = !draft.shift)) },
+                label = { Text("Shift") }
+            )
+            FilterChip(
+                selected = draft.alt,
+                onClick = { onDraftChange(draft.copy(alt = !draft.alt)) },
+                label = { Text("Alt") }
+            )
+            FilterChip(
+                selected = draft.win,
+                onClick = { onDraftChange(draft.copy(win = !draft.win)) },
+                label = { Text("Win") }
+            )
+        }
+        Text(
+            text = draft.displayLabel(),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text("Key", style = MaterialTheme.typography.labelMedium)
+        PrimaryTabRow(selectedTabIndex = ShortcutKeyGroup.entries.indexOf(selectedKeyGroup)) {
+            ShortcutKeyGroup.entries.forEach { group ->
+                Tab(
+                    selected = selectedKeyGroup == group,
+                    onClick = { selectedKeyGroup = group },
+                    text = { Text(group.title) }
+                )
+            }
+        }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ShortcutKeys.forGroup(selectedKeyGroup).forEach { keyOption ->
+                FilterChip(
+                    selected = draft.key == keyOption,
+                    onClick = { onDraftChange(draft.copy(key = keyOption)) },
+                    label = { Text(keyOption.label) }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun PresetEditorDialog(
     categories: List<PresetCategoryEntity>,
@@ -856,12 +930,32 @@ fun PresetEditorDialog(
     var selectedActionType by remember(initialActionType) { mutableStateOf(initialActionType) }
     var menuExpanded by remember { mutableStateOf(false) }
     val isCredential = selectedActionType == PresetActionCodec.TYPE_CREDENTIAL
+    val isKeyboardShortcut = selectedActionType == PresetActionCodec.TYPE_KEYBOARD_SHORTCUT
+    var shortcutDraft by remember(initialActionType, initialValue) {
+        mutableStateOf(
+            if (initialActionType == PresetActionCodec.TYPE_KEYBOARD_SHORTCUT ||
+                initialActionType == PresetActionCodec.TYPE_KEY_COMBO ||
+                initialActionType == PresetActionCodec.TYPE_KEY_PRESS
+            ) {
+                PresetShortcutDraft.fromShortcut(initialValue)
+            } else {
+                ShortcutDraft()
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(titleText) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val scrollState = rememberScrollState()
+            val maxDialogHeight = (LocalConfiguration.current.screenHeightDp * 0.55f).dp
+            Column(
+                modifier = Modifier
+                    .heightIn(max = maxDialogHeight)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
                     text = categories.firstOrNull { it.id == selectedCategoryId }?.title ?: "No category selected",
                     style = MaterialTheme.typography.labelMedium
@@ -891,6 +985,11 @@ fun PresetEditorDialog(
                                 text = { Text(actionTypeLabel(actionType)) },
                                 onClick = {
                                     selectedActionType = actionType
+                                    if (actionType == PresetActionCodec.TYPE_KEYBOARD_SHORTCUT &&
+                                        selectedActionType != PresetActionCodec.TYPE_KEYBOARD_SHORTCUT
+                                    ) {
+                                        shortcutDraft = ShortcutDraft()
+                                    }
                                     isSensitive = actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
                                         actionType == PresetActionCodec.TYPE_CREDENTIAL ||
                                         isSensitive
@@ -913,6 +1012,11 @@ fun PresetEditorDialog(
                         label = { Text("Password") },
                         singleLine = true
                     )
+                } else if (isKeyboardShortcut) {
+                    ShortcutPicker(
+                        draft = shortcutDraft,
+                        onDraftChange = { shortcutDraft = it }
+                    )
                 } else {
                     OutlinedTextField(
                         value = value,
@@ -932,18 +1036,22 @@ fun PresetEditorDialog(
             }
         },
         confirmButton = {
-            val payload = if (isCredential) {
-                JSONObject()
+            val payload = when {
+                isCredential -> JSONObject()
                     .put("login", login)
                     .put("password", password)
                     .toString()
-            } else {
-                value
+                isKeyboardShortcut -> shortcutDraft.toShortcutString()
+                else -> value
             }
             Button(
                 enabled = title.isNotBlank() &&
                     selectedCategoryId != null &&
-                    if (isCredential) login.isNotBlank() && password.isNotBlank() else value.isNotBlank(),
+                    when {
+                        isCredential -> login.isNotBlank() && password.isNotBlank()
+                        isKeyboardShortcut -> shortcutDraft.isValid
+                        else -> value.isNotBlank()
+                    },
                 onClick = { onSave(title, description, selectedActionType, payload, isSensitive || isCredential) }
             ) {
                 Text(confirmText)
@@ -1059,6 +1167,7 @@ fun BondedDeviceRow(
 
 private val editorActionTypes = listOf(
     PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND,
+    PresetActionCodec.TYPE_KEYBOARD_SHORTCUT,
     PresetActionCodec.TYPE_TYPE_TEXT,
     PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT,
     PresetActionCodec.TYPE_CREDENTIAL
@@ -1066,6 +1175,7 @@ private val editorActionTypes = listOf(
 
 private fun actionTypeLabel(actionType: String): String {
     return when (actionType) {
+        PresetActionCodec.TYPE_KEYBOARD_SHORTCUT -> "Keyboard shortcut"
         PresetActionCodec.TYPE_TYPE_TEXT -> "Type text"
         PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> "Type sensitive text"
         PresetActionCodec.TYPE_CREDENTIAL -> "Credential"

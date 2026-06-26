@@ -341,7 +341,15 @@ class HidDeviceManager(private val context: Context) {
             "LEFT" -> 0x50.toByte()
             "DOWN" -> 0x51.toByte()
             "UP" -> 0x52.toByte()
-            else -> null
+            else -> {
+                if (upper.length == 2 && upper.startsWith("F")) {
+                    upper.drop(1).toIntOrNull()?.takeIf { it in 1..12 }?.let {
+                        (0x39 + it).toByte()
+                    }
+                } else {
+                    null
+                }
+            }
         }
     }
 

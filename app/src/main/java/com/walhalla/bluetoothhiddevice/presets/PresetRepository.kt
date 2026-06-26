@@ -348,6 +348,7 @@ class PresetRepository(context: Context) {
                     password = credential.getString("password")
                 )
             }
+            PresetActionCodec.TYPE_KEYBOARD_SHORTCUT -> PresetShortcutParser.parse(value)
             else -> PresetAction.RunWindowsCommand(value)
         }
     }
