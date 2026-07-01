@@ -1,10 +1,12 @@
 package com.walhalla.bluetoothhiddevice
 
+import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -95,9 +97,9 @@ fun HidScreen(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(16.dp)
+
                 .fillMaxSize()
-                .verticalScroll(scrollState),
+                .verticalScroll(scrollState) .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -503,31 +505,33 @@ fun PresetsTab(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         OutlinedButton(
             onClick = onImportPresets,
             modifier = Modifier.weight(1f)
         ) {
-            Icon(Icons.Filled.FileUpload, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Import")
+            Column(verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Filled.FileDownload, contentDescription = null)
+                //Spacer(modifier = Modifier.width(8.dp))
+                Text(text="Import", style= MaterialTheme.typography.labelSmall)
+            }
         }
         OutlinedButton(
             onClick = onExportPresets,
             modifier = Modifier.weight(1f)
         ) {
-            Icon(Icons.Filled.FileDownload, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Export")
+           Icon(Icons.Filled.FileUpload, contentDescription = null)
+            //Spacer(modifier = Modifier.width(8.dp))
+            Text("Export", style= MaterialTheme.typography.labelSmall)
         }
         Button(
             onClick = onAddPreset,
             modifier = Modifier.weight(1f)
         ) {
             Icon(Icons.Filled.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add")
+            //Spacer(modifier = Modifier.width(8.dp))
+            Text("Add", style= MaterialTheme.typography.labelSmall)
         }
     }
 
