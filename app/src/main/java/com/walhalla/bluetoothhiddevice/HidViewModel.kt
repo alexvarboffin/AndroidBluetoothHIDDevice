@@ -136,6 +136,24 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         hidManager?.sendString(text)
     }
 
+    fun receiveSharedText(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+
+        val manager = hidManager
+        if (manager == null || !_uiState.value.isConnected) {
+            _uiState.value = _uiState.value.copy(
+                status = getApplication<Application>().getString(R.string.share_text_not_connected)
+            )
+            return
+        }
+
+        manager.sendString(trimmed)
+        _uiState.value = _uiState.value.copy(
+            status = getApplication<Application>().getString(R.string.share_text_sent)
+        )
+    }
+
     fun openCalculatorOnHost() {
         hidManager?.sendOpenCalculatorShortcut()
     }

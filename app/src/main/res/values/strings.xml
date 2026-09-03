@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Bluetooth HID Device</string>
+    <string name="share_text_sent">Shared text sent via HID</string>
+    <string name="share_text_not_connected">Connect to a Bluetooth device first</string>
 </resources>
