@@ -18,6 +18,7 @@ import com.walhalla.bluetoothhiddevice.presets.PresetCategoryEntity
 import com.walhalla.bluetoothhiddevice.presets.PresetEntity
 import com.walhalla.bluetoothhiddevice.presets.PresetExecutor
 import com.walhalla.bluetoothhiddevice.presets.PresetRepository
+import com.walhalla.bluetoothhiddevice.presets.PresetShortcutDraft
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +51,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
             presetExecutor = PresetExecutor(srv.hidManager)
             isServiceBound = true
             setupStatusListener()
+            refreshPersistentModeState()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -61,7 +63,8 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.value = _uiState.value.copy(
                 status = "HID Service disconnected",
                 isConnected = false,
-                connectedDeviceAddress = null
+                connectedDeviceAddress = null,
+                isPersistentMode = false
             )
         }
     }
@@ -104,6 +107,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         bindHidService()
         refreshBondedDevices()
         hidManager?.refreshConnectionState()
+        refreshPersistentModeState()
     }
 
     fun keepConnectionAliveInBackground() {
@@ -240,15 +244,26 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val presetWithActions = presetRepository.getPresetWithActions(preset.id) ?: return@launch
             val firstAction = presetWithActions.actions.firstOrNull()
-            val actionType = firstAction?.type ?: PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND
+            val actionType = when (firstAction?.type) {
+                PresetActionCodec.TYPE_KEY_COMBO,
+                PresetActionCodec.TYPE_KEY_PRESS -> PresetActionCodec.TYPE_KEYBOARD_SHORTCUT
+                else -> firstAction?.type ?: PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND
+            }
             val payload = firstAction?.payloadJson?.let { JSONObject(it) } ?: JSONObject()
             val editDraft = PresetEditDraft(
                 preset = presetWithActions.preset,
                 actionType = actionType,
-                value = when (actionType) {
+                value = when (firstAction?.type) {
                     PresetActionCodec.TYPE_TYPE_TEXT,
                     PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> payload.optString("text")
                     PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND -> payload.optString("command")
+                    PresetActionCodec.TYPE_KEY_COMBO,
+                    PresetActionCodec.TYPE_KEY_PRESS -> {
+                        firstAction?.let { PresetActionCodec.fromEntity(it) }
+                            ?.let(PresetShortcutDraft::fromAction)
+                            ?.toShortcutString()
+                            .orEmpty()
+                    }
                     else -> ""
                 },
                 login = payload.optString("login"),
@@ -394,9 +409,19 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun bindHidService() {
-        if (isServiceBound) return
+        if (isServiceBound) {
+            refreshPersistentModeState()
+            return
+        }
         val intent = Intent(getApplication(), HidForegroundService::class.java)
         getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    private fun refreshPersistentModeState() {
+        val isActive = hidService?.isForegroundModeActive() == true
+        if (_uiState.value.isPersistentMode != isActive) {
+            _uiState.value = _uiState.value.copy(isPersistentMode = isActive)
+        }
     }
 
     private fun generateDefaultPresetName(): String {

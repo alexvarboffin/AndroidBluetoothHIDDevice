@@ -44,12 +44,20 @@ class HidDeviceManager(private val context: Context) {
     }
 
     private var onStatusChanged: ((String, BluetoothDevice?) -> Unit)? = null
+    private var onConnectionChanged: ((String, Boolean) -> Unit)? = null
 
     fun setStatusListener(listener: (String, BluetoothDevice?) -> Unit) {
         onStatusChanged = listener
         // Force refresh when listener attaches (e.g., on app resume)
         refreshConnectionState()
     }
+
+    fun setConnectionListener(listener: (String, Boolean) -> Unit) {
+        onConnectionChanged = listener
+        refreshConnectionState()
+    }
+
+    fun isConnected(): Boolean = connectedDevice != null
 
     @SuppressLint("MissingPermission")
     fun refreshConnectionState() {
@@ -94,6 +102,7 @@ class HidDeviceManager(private val context: Context) {
     private fun updateStatus(status: String) {
         mainHandler.post {
             onStatusChanged?.invoke(status, connectedDevice)
+            onConnectionChanged?.invoke(status, connectedDevice != null)
         }
     }
 
@@ -191,6 +200,13 @@ class HidDeviceManager(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
+    fun disconnectCurrent(): Boolean {
+        val device = connectedDevice ?: return false
+        disconnect(device)
+        return true
+    }
+
+    @SuppressLint("MissingPermission")
     fun sendString(text: String) {
         val device = connectedDevice ?: return
         Log.d(TAG, "Typing string: $text")
@@ -281,13 +297,18 @@ class HidDeviceManager(private val context: Context) {
     }
 
     private fun modifierNameToByte(name: String): Byte? {
-        return when (name.uppercase()) {
-            "SHIFT" -> MOD_LEFT_SHIFT
-            "CTRL", "CONTROL" -> MOD_LEFT_CTRL
-            "ALT" -> MOD_LEFT_ALT
-            "WIN", "GUI", "META" -> MOD_LEFT_GUI
-            else -> null
+        var result = 0
+        for (part in name.split('+').map { it.trim().uppercase() }.filter { it.isNotEmpty() }) {
+            val modifier = when (part) {
+                "SHIFT" -> MOD_LEFT_SHIFT
+                "CTRL", "CONTROL" -> MOD_LEFT_CTRL
+                "ALT" -> MOD_LEFT_ALT
+                "WIN", "GUI", "META" -> MOD_LEFT_GUI
+                else -> return null
+            }
+            result = result or modifier.toInt()
         }
+        return if (result == 0) null else result.toByte()
     }
 
     private fun keyNameToUsageId(name: String): Byte? {
@@ -299,17 +320,36 @@ class HidDeviceManager(private val context: Context) {
             }
         }
         return when (upper) {
-            "ENTER" -> 0x28.toByte()
+            "ENTER", "RETURN" -> 0x28.toByte()
             "ESC", "ESCAPE" -> 0x29.toByte()
             "BACKSPACE" -> 0x2A.toByte()
             "TAB" -> 0x2B.toByte()
             "SPACE" -> 0x2C.toByte()
+            "-" -> 0x2D.toByte()
+            "=" -> 0x2E.toByte()
+            "[" -> 0x2F.toByte()
+            "]" -> 0x30.toByte()
+            "\\" -> 0x31.toByte()
+            ";" -> 0x33.toByte()
+            "'" -> 0x34.toByte()
+            "`", "GRAVE", "BACKTICK" -> 0x35.toByte()
+            "," -> 0x36.toByte()
+            "." -> 0x37.toByte()
+            "/" -> 0x38.toByte()
             "DELETE" -> 0x4C.toByte()
             "RIGHT" -> 0x4F.toByte()
             "LEFT" -> 0x50.toByte()
             "DOWN" -> 0x51.toByte()
             "UP" -> 0x52.toByte()
-            else -> null
+            else -> {
+                if (upper.length == 2 && upper.startsWith("F")) {
+                    upper.drop(1).toIntOrNull()?.takeIf { it in 1..12 }?.let {
+                        (0x39 + it).toByte()
+                    }
+                } else {
+                    null
+                }
+            }
         }
     }
 

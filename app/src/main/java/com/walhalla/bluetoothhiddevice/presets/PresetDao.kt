@@ -36,6 +36,12 @@ interface PresetDao {
     @Query("SELECT COUNT(*) FROM preset_categories")
     suspend fun getCategoryCount(): Int
 
+    @Query("SELECT * FROM preset_categories WHERE title = :title LIMIT 1")
+    suspend fun getCategoryByTitle(title: String): PresetCategoryEntity?
+
+    @Query("SELECT COUNT(*) FROM presets WHERE categoryId = :categoryId AND title = :title")
+    suspend fun countPresetsInCategory(categoryId: Long, title: String): Int
+
     @Query("SELECT * FROM presets WHERE id = :presetId LIMIT 1")
     suspend fun getPreset(presetId: Long): PresetEntity?
 

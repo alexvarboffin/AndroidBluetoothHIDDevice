@@ -1,14 +1,21 @@
 package com.walhalla.bluetoothhiddevice
 
+import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.ContentCopy
@@ -27,17 +34,23 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.walhalla.bluetoothhiddevice.presets.PresetActionCodec
 import com.walhalla.bluetoothhiddevice.presets.PresetCategoryEntity
 import com.walhalla.bluetoothhiddevice.presets.PresetEntity
+import com.walhalla.bluetoothhiddevice.presets.PresetShortcutDraft
+import com.walhalla.bluetoothhiddevice.presets.ShortcutDraft
+import com.walhalla.bluetoothhiddevice.presets.ShortcutKeyGroup
+import com.walhalla.bluetoothhiddevice.presets.ShortcutKeys
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,9 +97,9 @@ fun HidScreen(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(16.dp)
+
                 .fillMaxSize()
-                .verticalScroll(scrollState),
+                .verticalScroll(scrollState) .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -486,33 +499,39 @@ fun PresetsTab(
     onImportPresets: () -> Unit,
     onExportPresets: () -> Unit
 ) {
+    var viewLayoutName by rememberSaveable { mutableStateOf(PresetViewLayout.LIST.name) }
+    val viewLayout = remember(viewLayoutName) { PresetViewLayout.valueOf(viewLayoutName) }
+    val onViewLayoutSelected: (PresetViewLayout) -> Unit = { viewLayoutName = it.name }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         OutlinedButton(
             onClick = onImportPresets,
             modifier = Modifier.weight(1f)
         ) {
-            Icon(Icons.Filled.FileUpload, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Import")
+            Column(verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Filled.FileDownload, contentDescription = null)
+                //Spacer(modifier = Modifier.width(8.dp))
+                Text(text="Import", style= MaterialTheme.typography.labelSmall)
+            }
         }
         OutlinedButton(
             onClick = onExportPresets,
             modifier = Modifier.weight(1f)
         ) {
-            Icon(Icons.Filled.FileDownload, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Export")
+           Icon(Icons.Filled.FileUpload, contentDescription = null)
+            //Spacer(modifier = Modifier.width(8.dp))
+            Text("Export", style= MaterialTheme.typography.labelSmall)
         }
         Button(
             onClick = onAddPreset,
             modifier = Modifier.weight(1f)
         ) {
             Icon(Icons.Filled.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add")
+            //Spacer(modifier = Modifier.width(8.dp))
+            Text("Add", style= MaterialTheme.typography.labelSmall)
         }
     }
 
@@ -549,6 +568,13 @@ fun PresetsTab(
         }
     }
 
+    if (uiState.selectedPresetCategoryId != null) {
+        PresetViewLayoutSwitcher(
+            selectedLayout = viewLayout,
+            onLayoutSelected = onViewLayoutSelected
+        )
+    }
+
     if (uiState.presets.isEmpty()) {
         Text(
             text = "No presets in this category yet.",
@@ -556,16 +582,46 @@ fun PresetsTab(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     } else {
-        uiState.presets.forEach { preset ->
-            PresetCard(
-                preset = preset,
-                actionType = uiState.presetActionTypes[preset.id],
-                enabled = uiState.isConnected,
-                onRunPreset = { onRunPreset(preset) },
-                onEditPreset = { onEditPreset(preset) },
-                onDuplicatePreset = { onDuplicatePreset(preset) },
-                onDeletePreset = { onDeletePreset(preset) }
-            )
+        when (viewLayout) {
+            PresetViewLayout.LIST -> {
+                uiState.presets.forEach { preset ->
+                    PresetListCard(
+                        preset = preset,
+                        actionType = uiState.presetActionTypes[preset.id],
+                        enabled = uiState.isConnected,
+                        onRunPreset = { onRunPreset(preset) },
+                        onEditPreset = { onEditPreset(preset) },
+                        onDuplicatePreset = { onDuplicatePreset(preset) },
+                        onDeletePreset = { onDeletePreset(preset) }
+                    )
+                }
+            }
+            PresetViewLayout.GRID_2,
+            PresetViewLayout.GRID_3 -> {
+                val columns = if (viewLayout == PresetViewLayout.GRID_2) 2 else 3
+                uiState.presets.chunked(columns).forEach { rowPresets ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowPresets.forEach { preset ->
+                            PresetGridCard(
+                                modifier = Modifier.weight(1f),
+                                preset = preset,
+                                actionType = uiState.presetActionTypes[preset.id],
+                                enabled = uiState.isConnected,
+                                onRunPreset = { onRunPreset(preset) },
+                                onEditPreset = { onEditPreset(preset) },
+                                onDuplicatePreset = { onDuplicatePreset(preset) },
+                                onDeletePreset = { onDeletePreset(preset) }
+                            )
+                        }
+                        repeat(columns - rowPresets.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -598,8 +654,159 @@ fun PresetCategoryChips(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PresetCard(
+private fun PresetViewLayoutSwitcher(
+    selectedLayout: PresetViewLayout,
+    onLayoutSelected: (PresetViewLayout) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        SegmentedButton(
+            selected = selectedLayout == PresetViewLayout.LIST,
+            onClick = { onLayoutSelected(PresetViewLayout.LIST) },
+            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+            icon = { Icon(Icons.Filled.ViewList, contentDescription = null) },
+            label = { Text("List") }
+        )
+        SegmentedButton(
+            selected = selectedLayout == PresetViewLayout.GRID_2,
+            onClick = { onLayoutSelected(PresetViewLayout.GRID_2) },
+            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+            icon = { Icon(Icons.Filled.ViewModule, contentDescription = null) },
+            label = { Text("2 cols") }
+        )
+        SegmentedButton(
+            selected = selectedLayout == PresetViewLayout.GRID_3,
+            onClick = { onLayoutSelected(PresetViewLayout.GRID_3) },
+            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+            icon = { Icon(Icons.Filled.Apps, contentDescription = null) },
+            label = { Text("3 cols") }
+        )
+    }
+}
+
+@Composable
+fun PresetGridCard(
+    preset: PresetEntity,
+    actionType: String?,
+    enabled: Boolean,
+    onRunPreset: () -> Unit,
+    onEditPreset: () -> Unit,
+    onDuplicatePreset: () -> Unit,
+    onDeletePreset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val contentColor = if (preset.isSensitive) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Card(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clickable(enabled = enabled, onClick = onRunPreset),
+        colors = CardDefaults.cardColors(
+            containerColor = if (preset.isSensitive) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            }
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+            IconButton(
+                onClick = { menuExpanded = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = "Preset actions",
+                    modifier = Modifier.size(18.dp),
+                    tint = contentColor
+                )
+            }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Run") },
+                    enabled = enabled,
+                    onClick = {
+                        menuExpanded = false
+                        onRunPreset()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Edit") },
+                    enabled = !preset.isBuiltIn,
+                    onClick = {
+                        menuExpanded = false
+                        onEditPreset()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Copy") },
+                    onClick = {
+                        menuExpanded = false
+                        onDuplicatePreset()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    enabled = !preset.isBuiltIn,
+                    onClick = {
+                        menuExpanded = false
+                        onDeletePreset()
+                    }
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = presetActionIcon(actionType),
+                    contentDescription = presetActionLabel(actionType),
+                    modifier = Modifier.size(28.dp),
+                    tint = if (preset.isSensitive) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = preset.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = contentColor
+                )
+                if (preset.isSensitive) {
+                    Text(
+                        text = "Sensitive",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PresetListCard(
     preset: PresetEntity,
     actionType: String?,
     enabled: Boolean,
@@ -830,6 +1037,73 @@ fun DeletePresetDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ShortcutPicker(
+    draft: ShortcutDraft,
+    onDraftChange: (ShortcutDraft) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var selectedKeyGroup by remember { mutableStateOf(ShortcutKeyGroup.COMMON) }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Modifiers", style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = draft.ctrl,
+                onClick = { onDraftChange(draft.copy(ctrl = !draft.ctrl)) },
+                label = { Text("Ctrl") }
+            )
+            FilterChip(
+                selected = draft.shift,
+                onClick = { onDraftChange(draft.copy(shift = !draft.shift)) },
+                label = { Text("Shift") }
+            )
+            FilterChip(
+                selected = draft.alt,
+                onClick = { onDraftChange(draft.copy(alt = !draft.alt)) },
+                label = { Text("Alt") }
+            )
+            FilterChip(
+                selected = draft.win,
+                onClick = { onDraftChange(draft.copy(win = !draft.win)) },
+                label = { Text("Win") }
+            )
+        }
+        Text(
+            text = draft.displayLabel(),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text("Key", style = MaterialTheme.typography.labelMedium)
+        PrimaryTabRow(selectedTabIndex = ShortcutKeyGroup.entries.indexOf(selectedKeyGroup)) {
+            ShortcutKeyGroup.entries.forEach { group ->
+                Tab(
+                    selected = selectedKeyGroup == group,
+                    onClick = { selectedKeyGroup = group },
+                    text = { Text(group.title) }
+                )
+            }
+        }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ShortcutKeys.forGroup(selectedKeyGroup).forEach { keyOption ->
+                FilterChip(
+                    selected = draft.key == keyOption,
+                    onClick = { onDraftChange(draft.copy(key = keyOption)) },
+                    label = { Text(keyOption.label) }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun PresetEditorDialog(
     categories: List<PresetCategoryEntity>,
@@ -856,12 +1130,32 @@ fun PresetEditorDialog(
     var selectedActionType by remember(initialActionType) { mutableStateOf(initialActionType) }
     var menuExpanded by remember { mutableStateOf(false) }
     val isCredential = selectedActionType == PresetActionCodec.TYPE_CREDENTIAL
+    val isKeyboardShortcut = selectedActionType == PresetActionCodec.TYPE_KEYBOARD_SHORTCUT
+    var shortcutDraft by remember(initialActionType, initialValue) {
+        mutableStateOf(
+            if (initialActionType == PresetActionCodec.TYPE_KEYBOARD_SHORTCUT ||
+                initialActionType == PresetActionCodec.TYPE_KEY_COMBO ||
+                initialActionType == PresetActionCodec.TYPE_KEY_PRESS
+            ) {
+                PresetShortcutDraft.fromShortcut(initialValue)
+            } else {
+                ShortcutDraft()
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(titleText) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val scrollState = rememberScrollState()
+            val maxDialogHeight = (LocalConfiguration.current.screenHeightDp * 0.55f).dp
+            Column(
+                modifier = Modifier
+                    .heightIn(max = maxDialogHeight)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
                     text = categories.firstOrNull { it.id == selectedCategoryId }?.title ?: "No category selected",
                     style = MaterialTheme.typography.labelMedium
@@ -891,6 +1185,11 @@ fun PresetEditorDialog(
                                 text = { Text(actionTypeLabel(actionType)) },
                                 onClick = {
                                     selectedActionType = actionType
+                                    if (actionType == PresetActionCodec.TYPE_KEYBOARD_SHORTCUT &&
+                                        selectedActionType != PresetActionCodec.TYPE_KEYBOARD_SHORTCUT
+                                    ) {
+                                        shortcutDraft = ShortcutDraft()
+                                    }
                                     isSensitive = actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
                                         actionType == PresetActionCodec.TYPE_CREDENTIAL ||
                                         isSensitive
@@ -913,6 +1212,11 @@ fun PresetEditorDialog(
                         label = { Text("Password") },
                         singleLine = true
                     )
+                } else if (isKeyboardShortcut) {
+                    ShortcutPicker(
+                        draft = shortcutDraft,
+                        onDraftChange = { shortcutDraft = it }
+                    )
                 } else {
                     OutlinedTextField(
                         value = value,
@@ -932,18 +1236,22 @@ fun PresetEditorDialog(
             }
         },
         confirmButton = {
-            val payload = if (isCredential) {
-                JSONObject()
+            val payload = when {
+                isCredential -> JSONObject()
                     .put("login", login)
                     .put("password", password)
                     .toString()
-            } else {
-                value
+                isKeyboardShortcut -> shortcutDraft.toShortcutString()
+                else -> value
             }
             Button(
                 enabled = title.isNotBlank() &&
                     selectedCategoryId != null &&
-                    if (isCredential) login.isNotBlank() && password.isNotBlank() else value.isNotBlank(),
+                    when {
+                        isCredential -> login.isNotBlank() && password.isNotBlank()
+                        isKeyboardShortcut -> shortcutDraft.isValid
+                        else -> value.isNotBlank()
+                    },
                 onClick = { onSave(title, description, selectedActionType, payload, isSensitive || isCredential) }
             ) {
                 Text(confirmText)
@@ -1057,8 +1365,15 @@ fun BondedDeviceRow(
     }
 }
 
+private enum class PresetViewLayout {
+    LIST,
+    GRID_2,
+    GRID_3
+}
+
 private val editorActionTypes = listOf(
     PresetActionCodec.TYPE_RUN_WINDOWS_COMMAND,
+    PresetActionCodec.TYPE_KEYBOARD_SHORTCUT,
     PresetActionCodec.TYPE_TYPE_TEXT,
     PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT,
     PresetActionCodec.TYPE_CREDENTIAL
@@ -1066,6 +1381,7 @@ private val editorActionTypes = listOf(
 
 private fun actionTypeLabel(actionType: String): String {
     return when (actionType) {
+        PresetActionCodec.TYPE_KEYBOARD_SHORTCUT -> "Keyboard shortcut"
         PresetActionCodec.TYPE_TYPE_TEXT -> "Type text"
         PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT -> "Type sensitive text"
         PresetActionCodec.TYPE_CREDENTIAL -> "Credential"

@@ -19,6 +19,7 @@ object PresetActionCodec {
     const val TYPE_CREDENTIAL = "Credential"
     const val TYPE_KEY_COMBO = "KeyCombo"
     const val TYPE_KEY_PRESS = "KeyPress"
+    const val TYPE_KEYBOARD_SHORTCUT = "KeyboardShortcut"
     const val TYPE_DELAY = "Delay"
 
     fun toEntity(
