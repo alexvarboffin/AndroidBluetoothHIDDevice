@@ -7,4 +7,5 @@
     <string name="notification_action_calculator">Calculator</string>
     <string name="share_text_sent">Shared text sent via HID</string>
     <string name="share_text_not_connected">Connect to a Bluetooth device first</string>
+    <string name="hid_text_received">HID text: %1$s</string>
 </resources>

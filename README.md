@@ -2,6 +2,11 @@
 
 Android app that turns a phone into a Bluetooth HID keyboard for a paired host device. The current stable mode is keyboard-only because it gives faster and more reliable preset typing than the experimental composite keyboard/mouse descriptor.
 
+## Download APK
+
+Pre-built release: [v1.0](https://github.com/alexvarboffin/AndroidBluetoothHIDDevice/releases/tag/v1.0)  
+Asset: `bluetooth-hid-device-1.0.apk`
+
 ## Features
 
 - Bluetooth HID Device registration through Android's `BluetoothHidDevice` API.
@@ -14,6 +19,7 @@ Android app that turns a phone into a Bluetooth HID keyboard for a paired host d
 - Sensitive preset support with confirmation before execution.
 - Credential preset type: type login, press `Tab`, type password, press `Enter`.
 - Foreground service keepalive for preserving an active HID session while the app is in the background.
+- Exported `HidTextService`: another app can send plain text and the phone types it through the active HID session. The confirmation toast shows only the start and end of the string.
 
 ## Requirements
 

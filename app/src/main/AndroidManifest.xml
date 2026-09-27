@@ -45,6 +45,15 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <service
+            android:name=".HidTextService"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.walhalla.bluetoothhiddevice.action.SEND_TEXT" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>
