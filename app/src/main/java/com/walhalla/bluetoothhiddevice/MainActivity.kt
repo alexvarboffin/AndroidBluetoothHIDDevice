@@ -169,13 +169,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { sharedText ->
-                if (viewModel.uiState.value.isConnected) {
-                    viewModel.sendText(sharedText)
-                }
-            }
-        }
+        if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return
+        intent.getStringExtra(Intent.EXTRA_TEXT)?.let(viewModel::receiveSharedText)
     }
 
     private fun checkBluetoothState() {
