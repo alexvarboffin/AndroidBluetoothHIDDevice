@@ -519,34 +519,32 @@ fun PresetsTab(
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        OutlinedButton(
-            onClick = onImportPresets,
-            modifier = Modifier.weight(1f)
-        ) {
-            Column(verticalArrangement = Arrangement.Center) {
-                Icon(Icons.Filled.FileDownload, contentDescription = null)
-                //Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Import", style = MaterialTheme.typography.labelSmall)
-            }
+        Text(
+            text = "All presets",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        FilledTonalIconButton(onClick = onImportPresets) {
+            Icon(
+                imageVector = Icons.Filled.FileDownload,
+                contentDescription = "Import all presets"
+            )
         }
-        OutlinedButton(
-            onClick = onExportPresets,
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(Icons.Filled.FileUpload, contentDescription = null)
-            //Spacer(modifier = Modifier.width(8.dp))
-            Text("Export", style = MaterialTheme.typography.labelSmall)
+        //Spacer(modifier = Modifier.width(8.dp))
+        FilledTonalIconButton(onClick = onExportPresets) {
+            Icon(
+                imageVector = Icons.Filled.FileUpload,
+                contentDescription = "Export all presets"
+            )
         }
-        Button(
-            onClick = onAddPreset,
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = null)
-            //Spacer(modifier = Modifier.width(8.dp))
-            Text("Add", style = MaterialTheme.typography.labelSmall)
-        }
+        //Spacer(modifier = Modifier.width(8.dp))
     }
 
     FlowRow(
@@ -576,22 +574,44 @@ fun PresetsTab(
     }
     val selectedCategory =
         uiState.presetCategories.firstOrNull { it.id == uiState.selectedPresetCategoryId }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-
-        OutlinedButton(
-            enabled = selectedCategory?.isBuiltIn == false,
-            onClick = onDeleteCategory,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error
-            )
+    if (selectedCategory != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Filled.Delete, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Delete group")
+            Text(
+                text = if (selectedCategory.isBuiltIn) {
+                    "${selectedCategory.title} *"
+                } else {
+                    selectedCategory.title
+                },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            FilledTonalIconButton(onClick = onAddPreset) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Add preset"
+                )
+            }
+            FilledTonalIconButton(
+                onClick = onDeleteCategory,
+                enabled = !selectedCategory.isBuiltIn,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Delete group"
+                )
+            }
         }
     }
 
@@ -1338,7 +1358,7 @@ fun ExportPresetsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Export Presets") },
+        title = { Text("Export all presets") },
         text = {
             Text("Sensitive presets may contain plaintext secrets. Export them only if you trust the destination file.")
         },

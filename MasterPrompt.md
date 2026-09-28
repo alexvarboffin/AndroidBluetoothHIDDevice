@@ -96,7 +96,7 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **UX rule:** Preset list items must show a Material icon for the first action type, so users can distinguish command launch, text input, sensitive text, key actions, and delays at a glance.
 - **Item rule:** Preset items can be copied, edited, and deleted. Copy creates a new custom preset in the same category with the same actions and a `copy` suffix. Built-in seed presets are marked `PresetEntity.isBuiltIn`; they can be copied and run, but cannot be edited or deleted. Delete removes only custom presets and cascades their actions after confirmation.
 - **DB note:** `PresetDatabase` v3 adds `presets.isBuiltIn`; migration v2 -> v3 marks the default seed presets as built-in.
-- **Category rule:** Preset categories are user-manageable groups displayed as two-row horizontally scrollable chips. Built-in groups (`Дом`, `Работа`, `Программирование`) are marked `isBuiltIn` and cannot be deleted; custom groups can be added and deleted with cascade removal of their presets.
+- **Category rule:** Preset categories are user-manageable groups shown as wrapping `FilterChip`s. All chips stay on screen; do not put them in a horizontal scroller. Built-in groups (`Дом`, `Работа`, `Программирование`) are marked `isBuiltIn` and cannot be deleted; custom groups can be added and deleted with cascade removal of their presets. Button placement and labels: `Documentation/presets-tab.md`.
 
 ### 13. Connection Drop on Background (Battery Optimization)
 - **Problem:** OS suspends Bluetooth stack/proxy when Activity is hidden, breaking the HID link.
@@ -119,6 +119,11 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Problem:** Preset cards became visually tall after adding run/edit/copy/delete actions.
 - **Solution:** Reduced card padding/spacing, made `Run` a compact `FilledTonalButton`, reduced action icon sizes, and clipped long title/description text with ellipsis.
 - **Tools/Files:** `HidScreen.PresetCard`, `Documentation/Roadmap.md`.
+
+### 17. Presets Tab Actions
+- **Problem:** Import/export, add-preset, add-group, and delete-group sat in separate rows, so actions that follow the selected chip looked like screen-wide actions.
+- **Solution:** Two headers with the same title style. `All presets` owns import/export of the whole library. The selected group name owns add-preset and delete-group. Chips wrap with no horizontal scroll. Delete-group stays visible and is disabled for built-in groups so the header does not jump.
+- **Tools/Files:** `HidScreen.PresetsTab`, `Documentation/presets-tab.md`, `Documentation/Roadmap.md`.
 
 ## Core Implementation Details
 ...

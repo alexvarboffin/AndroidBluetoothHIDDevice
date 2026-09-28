@@ -42,9 +42,10 @@
 - [x] UX: у айтемов пресетов добавлены Material icons по типу первого действия (`RunWindowsCommand`, `TypeText`, `TypeSensitiveText`, `KeyCombo`, `KeyPress`, `Delay`).
 - [x] Items: у preset items добавлены действия `Copy`, `Edit` и `Delete`; copy создаёт новый custom preset в той же категории с теми же actions, edit открывает редактор с текущими значениями, delete удаляет custom preset и actions после подтверждения.
 - [x] Items: встроенные seed presets помечены `PresetEntity.isBuiltIn`; их можно запускать и копировать, но нельзя редактировать или удалять.
-- [x] Группы: категории пресетов отображаются чипами в две строки с горизонтальной прокруткой.
+- [x] Группы: категории пресетов — чипы с переносом строк, без горизонтальной прокрутки. Все группы видны сразу.
 - [x] Группы: добавлен механизм добавления пользовательских групп с default title формата `Group-123`.
 - [x] Группы: пользовательские группы можно удалять; встроенные `Дом`, `Работа`, `Программирование` помечены `isBuiltIn` и не удаляются.
+- [x] UI: действия вкладки `Presets` разведены по области действия. `All presets` — импорт и экспорт всего файла. Шапка выбранной группы — добавить пресет и удалить группу. Описание кнопок: `Documentation/presets-tab.md`.
 - [x] RoomDB: добавлена миграция v1 -> v2 для `preset_categories.isBuiltIn`.
 - [x] RoomDB: добавлена миграция v2 -> v3 для `presets.isBuiltIn`.
 - [x] Build note: для текущей связки AGP 9 built-in Kotlin + KSP добавлен `android.disallowKotlinSourceSets=false` в `gradle.properties`.
