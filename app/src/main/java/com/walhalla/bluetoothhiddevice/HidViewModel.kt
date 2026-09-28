@@ -313,7 +313,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun requestEditPreset(preset: PresetEntity) {
-        if (preset.isBuiltIn) return
+        // if (preset.isBuiltIn) return
         viewModelScope.launch {
             val presetWithActions = presetRepository.getPresetWithActions(preset.id) ?: return@launch
             val firstAction = presetWithActions.actions.firstOrNull()

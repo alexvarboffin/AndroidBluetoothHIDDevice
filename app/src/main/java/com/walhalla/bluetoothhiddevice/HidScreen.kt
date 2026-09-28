@@ -1268,7 +1268,7 @@ fun PresetGridCard(
                 )
                 DropdownMenuItem(
                     text = { Text("Edit") },
-                    enabled = !preset.isBuiltIn,
+                    // enabled = !preset.isBuiltIn,
                     onClick = {
                         menuExpanded = false
                         onEditPreset()
@@ -1408,7 +1408,7 @@ fun PresetListCard(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     IconButton(
-                        enabled = !preset.isBuiltIn,
+                        // enabled = !preset.isBuiltIn,
                         onClick = onEditPreset,
                         modifier = Modifier.size(32.dp)
                     ) {

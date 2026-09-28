@@ -219,7 +219,7 @@ class PresetRepository(context: Context) {
         isSensitive: Boolean
     ): Boolean {
         val source = getPresetWithActions(presetId) ?: return false
-        if (source.preset.isBuiltIn) return false
+        // if (source.preset.isBuiltIn) return false
 
         val action = actionFromValue(actionType, value)
         dao.updatePresetWithActions(
