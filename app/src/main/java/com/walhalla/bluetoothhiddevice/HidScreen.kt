@@ -3,6 +3,7 @@ package com.walhalla.bluetoothhiddevice
 import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -73,12 +74,16 @@ fun HidScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     var showPresetEditor by remember { mutableStateOf(false) }
     var showCategoryEditor by remember { mutableStateOf(false) }
     var showDeleteCategoryDialog by remember { mutableStateOf(false) }
     var presetPendingDelete by remember { mutableStateOf<PresetEntity?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = selectedTab != 0) {
+        selectedTab = 0
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

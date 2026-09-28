@@ -16,6 +16,7 @@ import java.util.concurrent.Executors
 
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
 
 class HidDeviceManager(private val context: Context) {
@@ -152,10 +153,12 @@ class HidDeviceManager(private val context: Context) {
             updateStatus(stateStr)
         }
 
+        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onSetReport(device: BluetoothDevice?, type: Byte, id: Byte, data: ByteArray?) {
             Log.d(TAG, "onSetReport from ${device?.name}: type=$type id=$id data=${data?.contentToString()}")
         }
 
+        @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onGetReport(device: BluetoothDevice?, type: Byte, id: Byte, bufferSize: Int) {
             Log.d(TAG, "onGetReport from ${device?.name}: type=$type id=$id")
         }
