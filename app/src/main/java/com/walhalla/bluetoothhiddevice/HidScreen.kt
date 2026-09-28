@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -107,6 +108,7 @@ fun HidScreen(
                 .padding(innerPadding)
 
                 .fillMaxSize()
+                .imePadding()
                 .verticalScroll(scrollState)
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -139,6 +141,19 @@ fun HidScreen(
                         }
                     }
                 )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Filled.Keyboard, contentDescription = null)
+                            Text("Type")
+                        }
+                    }
+                )
             }
 
             if (selectedTab == 1) {
@@ -154,6 +169,15 @@ fun HidScreen(
                     onDeleteCategory = { showDeleteCategoryDialog = true },
                     onImportPresets = onImportPresets,
                     onExportPresets = { showExportDialog = true }
+                )
+                return@Column
+            }
+
+            if (selectedTab == 2) {
+                TypeTab(
+                    enabled = uiState.isConnected,
+                    onSendClipboard = viewModel::sendClipboard,
+                    onTypingChange = viewModel::sendTypingChange
                 )
                 return@Column
             }
@@ -285,6 +309,83 @@ fun StatusTopBarTitle(status: String, isConnected: Boolean, isBluetoothOff: Bool
                 color = statusTint,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+fun TypeTab(
+    enabled: Boolean,
+    onSendClipboard: (String) -> Unit,
+    onTypingChange: (String, String) -> Unit
+) {
+    val clipboard = LocalClipboardManager.current
+    var draft by rememberSaveable { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Clipboard",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Button(
+                onClick = { onSendClipboard(clipboard.getText()?.text.orEmpty()) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = enabled
+            ) {
+                Text("Send clipboard")
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Keyboard",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { updated ->
+                    if (enabled) onTypingChange(draft, updated)
+                    draft = updated
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 140.dp),
+                minLines = 4,
+                enabled = enabled,
+                label = { Text("Type to host") }
+            )
+            Text(
+                text = "US keyboard characters are sent as you type. Other characters are skipped.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

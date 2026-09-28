@@ -187,6 +187,21 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         hidManager?.sendString(text)
     }
 
+    fun sendClipboard(text: String) {
+        if (text.isEmpty()) return
+        sendText(text)
+    }
+
+    fun sendTypingChange(previous: String, updated: String) {
+        if (previous == updated) return
+        val manager = hidManager ?: return
+        val common = previous.commonPrefixWith(updated).length
+        val deleted = previous.length - common
+        if (deleted > 0) manager.sendBackspaces(deleted)
+        val inserted = updated.substring(common)
+        if (inserted.isNotEmpty()) manager.sendString(inserted)
+    }
+
     fun receiveSharedText(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return

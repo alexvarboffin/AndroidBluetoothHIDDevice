@@ -22,6 +22,7 @@ class HidDeviceManager(private val context: Context) {
 
     private val TAG = "HidDeviceManager"
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val typingExecutor = Executors.newSingleThreadExecutor()
     private var bluetoothHidDevice: BluetoothHidDevice? = null
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private var connectedDevice: BluetoothDevice? = null
@@ -253,10 +254,21 @@ class HidDeviceManager(private val context: Context) {
     fun sendString(text: String) {
         val device = connectedDevice ?: return
         Log.d(TAG, "Typing string: $text")
-
-        Thread {
+        typingExecutor.execute {
             sendTextReport(device, text)
-        }.start()
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendBackspaces(count: Int) {
+        if (count <= 0) return
+        val device = connectedDevice ?: return
+        typingExecutor.execute {
+            repeat(count) {
+                sendKey(device, 0x2A.toByte(), 0.toByte())
+                Thread.sleep(20)
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
