@@ -21,7 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Bookmarks
-import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.BluetoothConnected
@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.*
@@ -502,50 +503,52 @@ fun DevicesTab(
         }
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    if(BuildConfig.DEBUG){
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onSendTestKey,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp),
+                enabled = uiState.isConnected
+            ) {
+                Text("Send Test 'A' Key")
+            }
+            Button(
+                onClick = onOpenCalculator,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp),
+                enabled = uiState.isConnected
+            ) {
+                Text("Win+R calc")
+            }
+        }
+
         Button(
-            onClick = onSendTestKey,
+            onClick = onSendSymbolTest,
             modifier = Modifier
-                .weight(1f)
+                .fillMaxWidth()
                 .height(56.dp),
             enabled = uiState.isConnected
         ) {
-            Text("Send Test 'A' Key")
+            Text("Send HID symbols")
         }
-        Button(
-            onClick = onOpenCalculator,
-            modifier = Modifier
-                .weight(1f)
-                .height(56.dp),
-            enabled = uiState.isConnected
-        ) {
-            Text("Win+R calc")
-        }
-    }
+        Text(
+            text = HidDeviceManager.PRINTABLE_SYMBOL_TEST,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
 
-    Button(
-        onClick = onSendSymbolTest,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        enabled = uiState.isConnected
-    ) {
-        Text("Send HID symbols")
+        Text(
+            text = "Note: Buttons are only active when connected",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
     }
-    Text(
-        text = HidDeviceManager.PRINTABLE_SYMBOL_TEST,
-        style = MaterialTheme.typography.bodySmall,
-        color = Color.Gray
-    )
-
-    Text(
-        text = "Note: Buttons are only active when connected",
-        style = MaterialTheme.typography.bodySmall,
-        color = Color.Gray
-    )
 }
 
 @Composable
@@ -866,8 +869,15 @@ fun PresetsTab(
             }
 
             PresetViewLayout.GRID_2,
-            PresetViewLayout.GRID_3 -> {
-                val columns = if (viewLayout == PresetViewLayout.GRID_2) 2 else 3
+            PresetViewLayout.GRID_3,
+            PresetViewLayout.GRID_4 -> {
+                val cellDp = when (viewLayout) {
+                    PresetViewLayout.GRID_2 -> 160f
+                    PresetViewLayout.GRID_3 -> 104f
+                    else -> 76f
+                }
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val columns = presetGridColumns(maxWidth.value, cellDp)
                 uiState.presets.chunked(columns).forEach { rowPresets ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -889,6 +899,7 @@ fun PresetsTab(
                             Spacer(modifier = Modifier.weight(1f))
                         }
                     }
+                }
                 }
             }
         }
@@ -928,23 +939,30 @@ private fun PresetViewLayoutSwitcher(
         SegmentedButton(
             selected = selectedLayout == PresetViewLayout.LIST,
             onClick = { onLayoutSelected(PresetViewLayout.LIST) },
-            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 4),
             icon = { Icon(Icons.Filled.ViewList, contentDescription = null) },
             label = { Text("List") }
         )
         SegmentedButton(
             selected = selectedLayout == PresetViewLayout.GRID_2,
             onClick = { onLayoutSelected(PresetViewLayout.GRID_2) },
-            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 4),
             icon = { Icon(Icons.Filled.ViewModule, contentDescription = null) },
-            label = { Text("2 cols") }
+            label = { Text("×2") }
         )
         SegmentedButton(
             selected = selectedLayout == PresetViewLayout.GRID_3,
             onClick = { onLayoutSelected(PresetViewLayout.GRID_3) },
-            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 4),
             icon = { Icon(Icons.Filled.Apps, contentDescription = null) },
-            label = { Text("3 cols") }
+            label = { Text("×3") }
+        )
+        SegmentedButton(
+            selected = selectedLayout == PresetViewLayout.GRID_4,
+            onClick = { onLayoutSelected(PresetViewLayout.GRID_4) },
+            shape = SegmentedButtonDefaults.itemShape(index = 3, count = 4),
+            icon = { Icon(Icons.Filled.GridView, contentDescription = null) },
+            label = { Text("×4") }
         )
     }
 }
@@ -1652,7 +1670,14 @@ fun BondedDeviceRow(
 private enum class PresetViewLayout {
     LIST,
     GRID_2,
-    GRID_3
+    GRID_3,
+    GRID_4
+}
+
+/** Сколько кнопок заданной стороны влезает в ширину. */
+private fun presetGridColumns(widthDp: Float, cellDp: Float): Int {
+    val gap = 8f
+    return ((widthDp + gap) / (cellDp + gap)).toInt().coerceAtLeast(1)
 }
 
 private val editorActionTypes = listOf(
