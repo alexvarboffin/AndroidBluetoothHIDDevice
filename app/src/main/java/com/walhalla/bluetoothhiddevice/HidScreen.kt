@@ -11,6 +11,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -115,13 +119,8 @@ fun HidScreen(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-
                 .fillMaxSize()
                 .imePadding()
-                .verticalScroll(scrollState)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             PrimaryTabRow(selectedTabIndex = selectedTab) {
                 Tab(
@@ -178,20 +177,27 @@ fun HidScreen(
                     onAddCategory = { showCategoryEditor = true },
                     onDeleteCategory = { showDeleteCategoryDialog = true },
                     onImportPresets = onImportPresets,
-                    onExportPresets = { showExportDialog = true }
+                    onExportPresets = { showExportDialog = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 )
-                return@Column
-            }
-
+            } else {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             if (selectedTab == 2) {
                 TypeTab(
                     enabled = uiState.isConnected,
                     onSendClipboard = viewModel::sendClipboard,
                     onTypingChange = viewModel::sendTypingChange
                 )
-                return@Column
-            }
-
+            } else {
             DevicesTab(
                 uiState = uiState,
                 onEnableBluetooth = onEnableBluetooth,
@@ -205,6 +211,9 @@ fun HidScreen(
                 onConnect = viewModel::connect,
                 onDisconnect = viewModel::disconnect
             )
+            }
+            }
+            }
         }
     }
 
@@ -700,10 +709,11 @@ fun HostCommandPresetMenu(
 
 @Composable
 private fun PresetGroupCard(
+    modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         )
@@ -731,14 +741,32 @@ fun PresetsTab(
     onAddCategory: () -> Unit,
     onDeleteCategory: () -> Unit,
     onImportPresets: () -> Unit,
-    onExportPresets: () -> Unit
+    onExportPresets: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var showGroupColorDialog by remember { mutableStateOf(false) }
     var viewLayoutName by rememberSaveable { mutableStateOf(PresetViewLayout.LIST.name) }
     val viewLayout = remember(viewLayoutName) { PresetViewLayout.valueOf(viewLayoutName) }
     val onViewLayoutSelected: (PresetViewLayout) -> Unit = { viewLayoutName = it.name }
+    val selectedCategory =
+        uiState.presetCategories.firstOrNull { it.id == uiState.selectedPresetCategoryId }
+    val groupColorArgb = selectedCategory?.colorArgb ?: 0
+    val columns = when (viewLayout) {
+        PresetViewLayout.LIST -> GridCells.Fixed(1)
+        PresetViewLayout.GRID_2 -> GridCells.Adaptive(160.dp)
+        PresetViewLayout.GRID_3 -> GridCells.Adaptive(104.dp)
+        PresetViewLayout.GRID_4 -> GridCells.Adaptive(76.dp)
+    }
 
-    PresetGroupCard {
+    LazyVerticalGrid(
+        columns = columns,
+        modifier = modifier,
+        contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+    item(span = { GridItemSpan(maxLineSpan) }) {
+    PresetGroupCard(Modifier.padding(horizontal = 12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -769,8 +797,10 @@ fun PresetsTab(
         //Spacer(modifier = Modifier.width(8.dp))
         }
     }
+    }
 
-    PresetGroupCard {
+    item(span = { GridItemSpan(maxLineSpan) }) {
+    PresetGroupCard(Modifier.padding(horizontal = 12.dp)) {
         FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -797,10 +827,11 @@ fun PresetsTab(
         )
     }
     }
-    val selectedCategory =
-        uiState.presetCategories.firstOrNull { it.id == uiState.selectedPresetCategoryId }
+    }
+
     if (selectedCategory != null) {
-        PresetGroupCard {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+        PresetGroupCard(Modifier.padding(horizontal = 12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -849,6 +880,57 @@ fun PresetsTab(
             }
         }
         }
+        }
+    }
+
+    if (uiState.selectedPresetCategoryId != null) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            PresetGroupCard {
+                PresetViewLayoutSwitcher(
+                    selectedLayout = viewLayout,
+                    onLayoutSelected = onViewLayoutSelected
+                )
+            }
+        }
+    }
+
+    if (uiState.presets.isEmpty()) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                text = "No presets in this category yet.",
+                modifier = Modifier.padding(horizontal = 12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    } else if (viewLayout == PresetViewLayout.LIST) {
+        items(uiState.presets, key = { it.id }) { preset ->
+            PresetListCard(
+                preset = preset,
+                actionType = uiState.presetActionTypes[preset.id],
+                groupColorArgb = groupColorArgb,
+                enabled = uiState.isConnected,
+                onRunPreset = { onRunPreset(preset) },
+                onEditPreset = { onEditPreset(preset) },
+                onDuplicatePreset = { onDuplicatePreset(preset) },
+                onDeletePreset = { onDeletePreset(preset) }
+            )
+        }
+    } else {
+        items(uiState.presets, key = { it.id }) { preset ->
+            PresetGridCard(
+                modifier = Modifier.fillMaxWidth(),
+                preset = preset,
+                actionType = uiState.presetActionTypes[preset.id],
+                groupColorArgb = groupColorArgb,
+                enabled = uiState.isConnected,
+                onRunPreset = { onRunPreset(preset) },
+                onEditPreset = { onEditPreset(preset) },
+                onDuplicatePreset = { onDuplicatePreset(preset) },
+                onDeletePreset = { onDeletePreset(preset) }
+            )
+        }
+    }
     }
 
     if (showGroupColorDialog && selectedCategory != null) {
@@ -860,80 +942,6 @@ fun PresetsTab(
                 onCategoryColorChange(colorArgb)
             }
         )
-    }
-
-    val groupColorArgb = selectedCategory?.colorArgb ?: 0
-
-    if (uiState.selectedPresetCategoryId != null) {
-        PresetGroupCard {
-            PresetViewLayoutSwitcher(
-                selectedLayout = viewLayout,
-                onLayoutSelected = onViewLayoutSelected
-            )
-        }
-    }
-
-    PresetGroupCard {
-        if (uiState.presets.isEmpty()) {
-        Text(
-            text = "No presets in this category yet.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    } else {
-        when (viewLayout) {
-            PresetViewLayout.LIST -> {
-                uiState.presets.forEach { preset ->
-                    PresetListCard(
-                        preset = preset,
-                        actionType = uiState.presetActionTypes[preset.id],
-                        groupColorArgb = groupColorArgb,
-                        enabled = uiState.isConnected,
-                        onRunPreset = { onRunPreset(preset) },
-                        onEditPreset = { onEditPreset(preset) },
-                        onDuplicatePreset = { onDuplicatePreset(preset) },
-                        onDeletePreset = { onDeletePreset(preset) }
-                    )
-                }
-            }
-
-            PresetViewLayout.GRID_2,
-            PresetViewLayout.GRID_3,
-            PresetViewLayout.GRID_4 -> {
-                val cellDp = when (viewLayout) {
-                    PresetViewLayout.GRID_2 -> 160f
-                    PresetViewLayout.GRID_3 -> 104f
-                    else -> 76f
-                }
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val columns = presetGridColumns(maxWidth.value, cellDp)
-                uiState.presets.chunked(columns).forEach { rowPresets ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        rowPresets.forEach { preset ->
-                            PresetGridCard(
-                                modifier = Modifier.weight(1f),
-                                preset = preset,
-                                actionType = uiState.presetActionTypes[preset.id],
-                                groupColorArgb = groupColorArgb,
-                                enabled = uiState.isConnected,
-                                onRunPreset = { onRunPreset(preset) },
-                                onEditPreset = { onEditPreset(preset) },
-                                onDuplicatePreset = { onDuplicatePreset(preset) },
-                                onDeletePreset = { onDeletePreset(preset) }
-                            )
-                        }
-                        repeat(columns - rowPresets.size) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-                }
-            }
-        }
-    }
     }
 }
 
@@ -1797,12 +1805,6 @@ private enum class PresetViewLayout {
     GRID_2,
     GRID_3,
     GRID_4
-}
-
-/** Сколько кнопок заданной стороны влезает в ширину. */
-private fun presetGridColumns(widthDp: Float, cellDp: Float): Int {
-    val gap = 8f
-    return ((widthDp + gap) / (cellDp + gap)).toInt().coerceAtLeast(1)
 }
 
 private val editorActionTypes = listOf(
