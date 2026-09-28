@@ -17,15 +17,16 @@ class PresetRepository(context: Context) {
     }
 
     suspend fun ensureSeedData() {
-        ensureBuiltInCategory("Дом", sortOrder = 0) { homeId ->
+        renameEnglishBuiltIns()
+        ensureBuiltInCategory("Home", sortOrder = 0) { homeId ->
             ensureBuiltInCommandPreset(homeId, "Calculator", "Windows Calculator", "calc", 0)
             ensureBuiltInCommandPreset(homeId, "Notepad", "Windows Notepad", "notepad", 1)
         }
-        ensureBuiltInCategory("Работа", sortOrder = 1) { workId ->
+        ensureBuiltInCategory("Work", sortOrder = 1) { workId ->
             ensureBuiltInCommandPreset(workId, "Firefox Profile Manager", "Open Firefox profile selector", "firefox -p", 0)
             ensureBuiltInCommandPreset(workId, "Task Manager", "Open Windows Task Manager", "taskmgr", 1)
         }
-        ensureBuiltInCategory("Программирование", sortOrder = 2) { devId ->
+        ensureBuiltInCategory("Programming", sortOrder = 2) { devId ->
             ensureBuiltInCommandPreset(devId, "Android Studio", "Launch Android Studio from PATH/App Paths", "studio64", 0)
             ensureBuiltInCommandPreset(devId, "Visual Studio Code", "Launch VS Code", "code", 1)
         }
@@ -43,24 +44,71 @@ class PresetRepository(context: Context) {
             ensureBuiltInShortcutPreset(cursorId, "Quick Open", "Quick open file (Ctrl+P)", "ctrl+p", 10)
             ensureBuiltInShortcutPreset(cursorId, "New Chat", "New chat (Ctrl+N)", "ctrl+n", 11)
         }
-        ensureBuiltInCategory("Стримерский дек", sortOrder = 4) { deckId ->
+        ensureBuiltInCategory("Streamer deck", sortOrder = 4) { deckId ->
             ensureBuiltInCommandPreset(
                 deckId,
                 "Open OBS",
-                "Запуск OBS. Путь установки по умолчанию",
+                "Launch OBS. Default install path",
                 "\"C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe\"",
                 0
             )
-            ensureBuiltInShortcutPreset(deckId, "Game Bar", "Панель записи Windows (Win+G)", "win+g", 1)
-            ensureBuiltInShortcutPreset(deckId, "Record", "Старт и стоп записи Game Bar (Win+Alt+R)", "win+alt+r", 2)
-            ensureBuiltInShortcutPreset(deckId, "Last 30s", "Последние 30 секунд, если фоновая запись включена (Win+Alt+G)", "win+alt+g", 3)
-            ensureBuiltInShortcutPreset(deckId, "Mute mic", "Микрофон Game Bar (Win+Alt+M)", "win+alt+m", 4)
-            ensureBuiltInShortcutPreset(deckId, "Screenshot", "Скриншот Game Bar (Win+Alt+PrtScn)", "win+alt+prtsc", 5)
-            ensureBuiltInShortcutPreset(deckId, "Scene 1", "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F1", "ctrl+f1", 6)
-            ensureBuiltInShortcutPreset(deckId, "Scene 2", "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F2", "ctrl+f2", 7)
-            ensureBuiltInShortcutPreset(deckId, "Scene 3", "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F3", "ctrl+f3", 8)
-            ensureBuiltInShortcutPreset(deckId, "Go live", "Эфир OBS. Один раз назначь Start Streaming на Ctrl+F9", "ctrl+f9", 9)
+            ensureBuiltInShortcutPreset(deckId, "Game Bar", "Windows capture bar (Win+G)", "win+g", 1)
+            ensureBuiltInShortcutPreset(deckId, "Record", "Start and stop Game Bar recording (Win+Alt+R)", "win+alt+r", 2)
+            ensureBuiltInShortcutPreset(deckId, "Last 30s", "Last 30 seconds, if background recording is on (Win+Alt+G)", "win+alt+g", 3)
+            ensureBuiltInShortcutPreset(deckId, "Mute mic", "Game Bar microphone (Win+Alt+M)", "win+alt+m", 4)
+            ensureBuiltInShortcutPreset(deckId, "Screenshot", "Game Bar screenshot (Win+Alt+PrtScn)", "win+alt+prtsc", 5)
+            ensureBuiltInShortcutPreset(deckId, "Scene 1", "OBS scene. Assign Ctrl+F1 once in OBS", "ctrl+f1", 6)
+            ensureBuiltInShortcutPreset(deckId, "Scene 2", "OBS scene. Assign Ctrl+F2 once in OBS", "ctrl+f2", 7)
+            ensureBuiltInShortcutPreset(deckId, "Scene 3", "OBS scene. Assign Ctrl+F3 once in OBS", "ctrl+f3", 8)
+            ensureBuiltInShortcutPreset(deckId, "Go live", "OBS stream. Assign Start Streaming to Ctrl+F9 once", "ctrl+f9", 9)
         }
+    }
+
+    private suspend fun renameEnglishBuiltIns() {
+        dao.renameBuiltInCategory("Дом", "Home")
+        dao.renameBuiltInCategory("Работа", "Work")
+        dao.renameBuiltInCategory("Программирование", "Programming")
+        dao.renameBuiltInCategory("Стримерский дек", "Streamer deck")
+        dao.replaceBuiltInPresetDescription(
+            "Запуск OBS. Путь установки по умолчанию",
+            "Launch OBS. Default install path"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Панель записи Windows (Win+G)",
+            "Windows capture bar (Win+G)"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Старт и стоп записи Game Bar (Win+Alt+R)",
+            "Start and stop Game Bar recording (Win+Alt+R)"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Последние 30 секунд, если фоновая запись включена (Win+Alt+G)",
+            "Last 30 seconds, if background recording is on (Win+Alt+G)"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Микрофон Game Bar (Win+Alt+M)",
+            "Game Bar microphone (Win+Alt+M)"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Скриншот Game Bar (Win+Alt+PrtScn)",
+            "Game Bar screenshot (Win+Alt+PrtScn)"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F1",
+            "OBS scene. Assign Ctrl+F1 once in OBS"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F2",
+            "OBS scene. Assign Ctrl+F2 once in OBS"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F3",
+            "OBS scene. Assign Ctrl+F3 once in OBS"
+        )
+        dao.replaceBuiltInPresetDescription(
+            "Эфир OBS. Один раз назначь Start Streaming на Ctrl+F9",
+            "OBS stream. Assign Start Streaming to Ctrl+F9 once"
+        )
     }
 
     private suspend fun ensureBuiltInCategory(

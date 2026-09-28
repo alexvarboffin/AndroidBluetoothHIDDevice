@@ -57,6 +57,12 @@ interface PresetDao {
     @Query("UPDATE preset_categories SET colorArgb = :colorArgb WHERE id = :categoryId")
     suspend fun updateCategoryColor(categoryId: Long, colorArgb: Int)
 
+    @Query("UPDATE preset_categories SET title = :newTitle WHERE title = :oldTitle AND isBuiltIn = 1")
+    suspend fun renameBuiltInCategory(oldTitle: String, newTitle: String)
+
+    @Query("UPDATE presets SET description = :newDescription WHERE description = :oldDescription AND isBuiltIn = 1")
+    suspend fun replaceBuiltInPresetDescription(oldDescription: String, newDescription: String)
+
     @Query("DELETE FROM preset_categories WHERE id = :categoryId AND isBuiltIn = 0")
     suspend fun deleteCustomCategory(categoryId: Long): Int
 

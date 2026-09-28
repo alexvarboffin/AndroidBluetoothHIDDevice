@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ViewList
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.*
@@ -423,15 +425,19 @@ private fun StatusLamp(
     isBluetoothOff: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val container = when {
-        isConnected -> MaterialTheme.colorScheme.primaryContainer
-        isStatusError(status, isBluetoothOff) -> MaterialTheme.colorScheme.errorContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+    val container = when (statusTone(status, isConnected, isBluetoothOff)) {
+        StatusTone.Connected -> MaterialTheme.colorScheme.primaryContainer
+        StatusTone.Ready -> MaterialTheme.colorScheme.tertiaryContainer
+        StatusTone.Busy -> MaterialTheme.colorScheme.secondaryContainer
+        StatusTone.Idle -> MaterialTheme.colorScheme.surfaceVariant
+        StatusTone.Error -> MaterialTheme.colorScheme.errorContainer
     }
-    val glyph = when {
-        isConnected -> MaterialTheme.colorScheme.onPrimaryContainer
-        isStatusError(status, isBluetoothOff) -> MaterialTheme.colorScheme.onErrorContainer
-        else -> MaterialTheme.colorScheme.outline
+    val glyph = when (statusTone(status, isConnected, isBluetoothOff)) {
+        StatusTone.Connected -> MaterialTheme.colorScheme.onPrimaryContainer
+        StatusTone.Ready -> MaterialTheme.colorScheme.onTertiaryContainer
+        StatusTone.Busy -> MaterialTheme.colorScheme.onSecondaryContainer
+        StatusTone.Idle -> MaterialTheme.colorScheme.outline
+        StatusTone.Error -> MaterialTheme.colorScheme.onErrorContainer
     }
     Box(
         modifier = modifier
@@ -647,22 +653,35 @@ fun DevicesTab(
 
     InstructionsSection()
 
-    Button(
-        onClick = onMakeDiscoverable,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text("Make Discoverable")
-    }
-
-    Button(
-        onClick = onForceReset,
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer
-        )
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Reset HID Service")
+        Button(onClick = onMakeDiscoverable) {
+            Icon(
+                imageVector = Icons.Filled.BluetoothSearching,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+            Text("Make Discoverable")
+        }
+        Button(
+            onClick = onForceReset,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Filled.RestartAlt,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+            Text("Reset HID Service")
+        }
     }
 
     if (uiState.bondedDevices.isNotEmpty()) {
@@ -732,15 +751,16 @@ fun DevicesTab(
 
 @Composable
 fun StatusCard(status: String, isConnected: Boolean, isBluetoothOff: Boolean) {
-    val isError = isStatusError(status, isBluetoothOff)
-
+    val tone = statusTone(status, isConnected, isBluetoothOff)
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = when {
-                isConnected -> Color(0xFFE8F5E9)
-                isError -> Color(0xFFFFEBEE)
-                else -> MaterialTheme.colorScheme.surfaceVariant
+            containerColor = when (tone) {
+                StatusTone.Connected -> MaterialTheme.colorScheme.primaryContainer
+                StatusTone.Ready -> MaterialTheme.colorScheme.tertiaryContainer
+                StatusTone.Busy -> MaterialTheme.colorScheme.secondaryContainer
+                StatusTone.Idle -> MaterialTheme.colorScheme.surfaceVariant
+                StatusTone.Error -> MaterialTheme.colorScheme.errorContainer
             }
         )
     ) {
@@ -750,22 +770,42 @@ fun StatusCard(status: String, isConnected: Boolean, isBluetoothOff: Boolean) {
                 text = status,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = when {
-                    isConnected -> Color(0xFF2E7D32)
-                    isError -> Color(0xFFC62828)
-                    else -> Color.Unspecified
-                }
+                color = statusColor(status, isConnected, isBluetoothOff)
             )
         }
     }
 }
 
+private enum class StatusTone {
+    Connected,
+    Ready,
+    Busy,
+    Idle,
+    Error
+}
+
+private fun statusTone(status: String, isConnected: Boolean, isBluetoothOff: Boolean): StatusTone {
+    if (isBluetoothOff || isStatusError(status, isBluetoothOff)) return StatusTone.Error
+    if (isConnected || status.startsWith("Connected")) return StatusTone.Connected
+    if (status.contains("Ready")) return StatusTone.Ready
+    if (
+        status.startsWith("Initializing") ||
+        status.startsWith("Connecting") ||
+        status.startsWith("Disconnecting")
+    ) {
+        return StatusTone.Busy
+    }
+    return StatusTone.Idle
+}
+
 @Composable
 private fun statusColor(status: String, isConnected: Boolean, isBluetoothOff: Boolean): Color {
-    return when {
-        isConnected -> MaterialTheme.colorScheme.primary
-        isStatusError(status, isBluetoothOff) -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    return when (statusTone(status, isConnected, isBluetoothOff)) {
+        StatusTone.Connected -> MaterialTheme.colorScheme.primary
+        StatusTone.Ready -> MaterialTheme.colorScheme.tertiary
+        StatusTone.Busy -> MaterialTheme.colorScheme.secondary
+        StatusTone.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
+        StatusTone.Error -> MaterialTheme.colorScheme.error
     }
 }
 
@@ -780,7 +820,14 @@ private fun statusIcon(status: String, isConnected: Boolean, isBluetoothOff: Boo
 }
 
 private fun isStatusError(status: String, isBluetoothOff: Boolean): Boolean {
-    return isBluetoothOff || status.contains("Unregistered") || status.contains("FAILED")
+    if (isBluetoothOff) return true
+    val normalized = status.lowercase()
+    return normalized.contains("unregistered") ||
+        normalized.contains("failed") ||
+        normalized.contains("error") ||
+        normalized.contains("lost") ||
+        normalized.contains("permission") ||
+        normalized.contains("service disconnected")
 }
 
 @Composable
@@ -936,7 +983,7 @@ private fun PresetsTab(
     //Spacer(modifier = Modifier.width(8.dp))
 
     item(span = { GridItemSpan(maxLineSpan) }) {
-    PresetGroupCard(Modifier.padding(horizontal = 12.dp)) {
+    PresetGroupCard {
         FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
