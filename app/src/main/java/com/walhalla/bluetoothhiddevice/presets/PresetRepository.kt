@@ -132,6 +132,10 @@ class PresetRepository(context: Context) {
         return dao.deleteCustomCategory(categoryId) > 0
     }
 
+    suspend fun setCategoryColor(categoryId: Long, colorArgb: Int) {
+        dao.updateCategoryColor(categoryId, colorArgb)
+    }
+
     suspend fun addSingleActionPreset(
         categoryId: Long,
         title: String,
@@ -267,6 +271,7 @@ class PresetRepository(context: Context) {
                     .put("title", category.title)
                     .put("sortOrder", category.sortOrder)
                     .put("isBuiltIn", category.isBuiltIn)
+                    .put("colorArgb", category.colorArgb)
                     .put("createdAt", category.createdAt)
             }))
             .put("presets", JSONArray(presets.map { preset ->
@@ -305,6 +310,7 @@ class PresetRepository(context: Context) {
                     title = source.getString("title"),
                     sortOrder = source.optInt("sortOrder", index),
                     isBuiltIn = source.optBoolean("isBuiltIn", false),
+                    colorArgb = source.optInt("colorArgb", 0),
                     createdAt = System.currentTimeMillis()
                 )
             )

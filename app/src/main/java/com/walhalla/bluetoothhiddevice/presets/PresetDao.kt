@@ -54,6 +54,9 @@ interface PresetDao {
     @Insert
     suspend fun insertCategory(category: PresetCategoryEntity): Long
 
+    @Query("UPDATE preset_categories SET colorArgb = :colorArgb WHERE id = :categoryId")
+    suspend fun updateCategoryColor(categoryId: Long, colorArgb: Int)
+
     @Query("DELETE FROM preset_categories WHERE id = :categoryId AND isBuiltIn = 0")
     suspend fun deleteCustomCategory(categoryId: Long): Int
 

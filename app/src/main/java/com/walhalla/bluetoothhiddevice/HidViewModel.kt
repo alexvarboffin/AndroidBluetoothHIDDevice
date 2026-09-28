@@ -244,6 +244,13 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setSelectedPresetCategoryColor(colorArgb: Int) {
+        val categoryId = _uiState.value.selectedPresetCategoryId ?: return
+        viewModelScope.launch {
+            presetRepository.setCategoryColor(categoryId, colorArgb)
+        }
+    }
+
     fun deleteSelectedPresetCategory() {
         val category = _uiState.value.presetCategories
             .firstOrNull { it.id == _uiState.value.selectedPresetCategoryId }

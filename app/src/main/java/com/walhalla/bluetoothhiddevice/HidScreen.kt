@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Schedule
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
@@ -171,6 +174,7 @@ fun HidScreen(
                     onDuplicatePreset = viewModel::duplicatePreset,
                     onDeletePreset = { presetPendingDelete = it },
                     onAddPreset = { showPresetEditor = true },
+                    onCategoryColorChange = viewModel::setSelectedPresetCategoryColor,
                     onAddCategory = { showCategoryEditor = true },
                     onDeleteCategory = { showDeleteCategoryDialog = true },
                     onImportPresets = onImportPresets,
@@ -723,11 +727,13 @@ fun PresetsTab(
     onDuplicatePreset: (PresetEntity) -> Unit,
     onDeletePreset: (PresetEntity) -> Unit,
     onAddPreset: () -> Unit,
+    onCategoryColorChange: (Int) -> Unit,
     onAddCategory: () -> Unit,
     onDeleteCategory: () -> Unit,
     onImportPresets: () -> Unit,
     onExportPresets: () -> Unit
 ) {
+    var showGroupColorDialog by remember { mutableStateOf(false) }
     var viewLayoutName by rememberSaveable { mutableStateOf(PresetViewLayout.LIST.name) }
     val viewLayout = remember(viewLayoutName) { PresetViewLayout.valueOf(viewLayoutName) }
     val onViewLayoutSelected: (PresetViewLayout) -> Unit = { viewLayoutName = it.name }
@@ -813,6 +819,15 @@ fun PresetsTab(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            FilledTonalIconButton(
+                onClick = { showGroupColorDialog = true },
+                colors = groupColorButtonColors(selectedCategory.colorArgb)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Palette,
+                    contentDescription = "Group color"
+                )
+            }
             FilledTonalIconButton(onClick = onAddPreset) {
                 Icon(
                     imageVector = Icons.Filled.Add,
@@ -835,6 +850,19 @@ fun PresetsTab(
         }
         }
     }
+
+    if (showGroupColorDialog && selectedCategory != null) {
+        GroupColorDialog(
+            selectedArgb = selectedCategory.colorArgb,
+            onDismiss = { showGroupColorDialog = false },
+            onSelect = { colorArgb ->
+                showGroupColorDialog = false
+                onCategoryColorChange(colorArgb)
+            }
+        )
+    }
+
+    val groupColorArgb = selectedCategory?.colorArgb ?: 0
 
     if (uiState.selectedPresetCategoryId != null) {
         PresetGroupCard {
@@ -859,6 +887,7 @@ fun PresetsTab(
                     PresetListCard(
                         preset = preset,
                         actionType = uiState.presetActionTypes[preset.id],
+                        groupColorArgb = groupColorArgb,
                         enabled = uiState.isConnected,
                         onRunPreset = { onRunPreset(preset) },
                         onEditPreset = { onEditPreset(preset) },
@@ -888,6 +917,7 @@ fun PresetsTab(
                                 modifier = Modifier.weight(1f),
                                 preset = preset,
                                 actionType = uiState.presetActionTypes[preset.id],
+                                groupColorArgb = groupColorArgb,
                                 enabled = uiState.isConnected,
                                 onRunPreset = { onRunPreset(preset) },
                                 onEditPreset = { onEditPreset(preset) },
@@ -971,6 +1001,7 @@ private fun PresetViewLayoutSwitcher(
 fun PresetGridCard(
     preset: PresetEntity,
     actionType: String?,
+    groupColorArgb: Int,
     enabled: Boolean,
     onRunPreset: () -> Unit,
     onEditPreset: () -> Unit,
@@ -990,11 +1021,7 @@ fun PresetGridCard(
             .aspectRatio(1f)
             .clickable(enabled = enabled, onClick = onRunPreset),
         colors = CardDefaults.cardColors(
-            containerColor = if (preset.isSensitive) {
-                MaterialTheme.colorScheme.errorContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            }
+            containerColor = presetItemContainer(preset.isSensitive, groupColorArgb)
         )
     ) {
         Box(modifier = Modifier
@@ -1060,11 +1087,7 @@ fun PresetGridCard(
                     imageVector = presetActionIcon(actionType),
                     contentDescription = presetActionLabel(actionType),
                     modifier = Modifier.size(28.dp),
-                    tint = if (preset.isSensitive) {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    }
+                    tint = presetItemIconTint(preset.isSensitive, groupColorArgb)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -1092,6 +1115,7 @@ fun PresetGridCard(
 fun PresetListCard(
     preset: PresetEntity,
     actionType: String?,
+    groupColorArgb: Int,
     enabled: Boolean,
     onRunPreset: () -> Unit,
     onEditPreset: () -> Unit,
@@ -1101,11 +1125,7 @@ fun PresetListCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (preset.isSensitive) {
-                MaterialTheme.colorScheme.errorContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            }
+            containerColor = presetItemContainer(preset.isSensitive, groupColorArgb)
         )
     ) {
         Row(
@@ -1123,11 +1143,7 @@ fun PresetListCard(
                     imageVector = presetActionIcon(actionType),
                     contentDescription = presetActionLabel(actionType),
                     modifier = Modifier.size(20.dp),
-                    tint = if (preset.isSensitive) {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    }
+                    tint = presetItemIconTint(preset.isSensitive, groupColorArgb)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -1663,6 +1679,115 @@ fun BondedDeviceRow(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(if (isConnected) "Disconnect" else "Connect")
             }
+        }
+    }
+}
+
+private val groupColorSwatches = intArrayOf(
+    0xFFE53935.toInt(),
+    0xFFFB8C00.toInt(),
+    0xFFFDD835.toInt(),
+    0xFF43A047.toInt(),
+    0xFF00ACC1.toInt(),
+    0xFF1E88E5.toInt(),
+    0xFF5E35B1.toInt(),
+    0xFF8E24AA.toInt(),
+    0xFFD81B60.toInt(),
+    0xFF6D4C41.toInt()
+)
+
+@Composable
+private fun groupColorButtonColors(colorArgb: Int): IconButtonColors {
+    if (colorArgb == 0) return IconButtonDefaults.filledTonalIconButtonColors()
+    val tint = Color(colorArgb)
+    return IconButtonDefaults.filledTonalIconButtonColors(
+        containerColor = tint,
+        contentColor = contentOn(tint)
+    )
+}
+
+@Composable
+private fun presetItemContainer(isSensitive: Boolean, groupColorArgb: Int): Color {
+    val base = if (isSensitive) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    if (groupColorArgb == 0) return base
+    return lerp(base, Color(groupColorArgb), 0.42f)
+}
+
+@Composable
+private fun presetItemIconTint(isSensitive: Boolean, groupColorArgb: Int): Color {
+    if (isSensitive) return MaterialTheme.colorScheme.onErrorContainer
+    if (groupColorArgb == 0) return MaterialTheme.colorScheme.primary
+    return Color(groupColorArgb)
+}
+
+private fun contentOn(color: Color): Color {
+    val luminance = color.red * 0.299f + color.green * 0.587f + color.blue * 0.114f
+    return if (luminance > 0.6f) Color.Black else Color.White
+}
+
+@Composable
+private fun GroupColorDialog(
+    selectedArgb: Int,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Group color") },
+        text = {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GroupColorSwatch(
+                    colorArgb = 0,
+                    selected = selectedArgb == 0,
+                    onClick = { onSelect(0) }
+                )
+                groupColorSwatches.forEach { colorArgb ->
+                    GroupColorSwatch(
+                        colorArgb = colorArgb,
+                        selected = selectedArgb == colorArgb,
+                        onClick = { onSelect(colorArgb) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+private fun GroupColorSwatch(
+    colorArgb: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val color = if (colorArgb == 0) MaterialTheme.colorScheme.surfaceContainerHigh else Color(colorArgb)
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .background(color, CircleShape)
+            .clickable(onClick = onClick)
+            .then(
+                if (selected) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                } else {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (colorArgb == 0) {
+            Text("—", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

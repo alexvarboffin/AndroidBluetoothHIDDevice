@@ -11,6 +11,7 @@ data class PresetCategoryEntity(
     val title: String,
     val sortOrder: Int,
     val isBuiltIn: Boolean = false,
+    val colorArgb: Int = 0,
     val createdAt: Long = System.currentTimeMillis()
 )
 
