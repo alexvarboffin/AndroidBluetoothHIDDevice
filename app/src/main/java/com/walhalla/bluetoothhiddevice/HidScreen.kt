@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bluetooth
@@ -660,7 +661,7 @@ fun DevicesTab(
     ) {
         Button(onClick = onMakeDiscoverable) {
             Icon(
-                imageVector = Icons.Filled.BluetoothSearching,
+                imageVector = Icons.AutoMirrored.Filled.BluetoothSearching,
                 contentDescription = null,
                 modifier = Modifier.size(ButtonDefaults.IconSize)
             )
