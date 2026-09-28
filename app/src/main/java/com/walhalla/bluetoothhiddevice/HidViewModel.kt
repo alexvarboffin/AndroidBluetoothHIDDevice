@@ -1,5 +1,6 @@
 package com.walhalla.bluetoothhiddevice
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
 import android.bluetooth.BluetoothAdapter
@@ -8,6 +9,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -104,6 +107,15 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resume() {
+        val granted = hasBluetoothConnectPermission()
+        _uiState.value = _uiState.value.copy(
+            bluetoothConnectGranted = granted,
+            bluetoothPermissionPermanentlyDenied = if (granted) {
+                false
+            } else {
+                _uiState.value.bluetoothPermissionPermanentlyDenied
+            }
+        )
         bindHidService()
         refreshBondedDevices()
         hidManager?.refreshConnectionState()
@@ -120,8 +132,43 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
 
     @SuppressLint("MissingPermission")
     fun refreshBondedDevices() {
-        val devices = bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
-        _uiState.value = _uiState.value.copy(bondedDevices = devices)
+        if (!hasBluetoothConnectPermission()) {
+            _uiState.value = _uiState.value.copy(
+                bondedDevices = emptyList(),
+                bluetoothConnectGranted = false
+            )
+            return
+        }
+        val devices = try {
+            bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
+        } catch (e: SecurityException) {
+            Log.w(TAG, "BLUETOOTH_CONNECT missing", e)
+            emptyList()
+        }
+        _uiState.value = _uiState.value.copy(
+            bondedDevices = devices,
+            bluetoothConnectGranted = true,
+            bluetoothPermissionPermanentlyDenied = false
+        )
+    }
+
+    fun isBluetoothConnectGranted(): Boolean = hasBluetoothConnectPermission()
+
+    fun noteBluetoothPermissionDenied(permanentlyDenied: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            bluetoothConnectGranted = false,
+            bluetoothPermissionPermanentlyDenied = permanentlyDenied,
+            bondedDevices = emptyList(),
+            status = "Bluetooth permission required"
+        )
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return ContextCompat.checkSelfPermission(
+            getApplication(),
+            Manifest.permission.BLUETOOTH_CONNECT
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     fun makeDiscoverable(activity: android.app.Activity) {
@@ -160,6 +207,10 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openCalculatorOnHost() {
         hidManager?.sendOpenCalculatorShortcut()
+    }
+
+    fun sendHidSymbolTest() {
+        hidManager?.sendString(HidDeviceManager.PRINTABLE_SYMBOL_TEST)
     }
 
     fun runWindowsCommandPreset(command: String) {
@@ -437,6 +488,8 @@ data class HidUiState(
     val status: String = "Initializing...",
     val isConnected: Boolean = false,
     val isBluetoothOff: Boolean = false,
+    val bluetoothConnectGranted: Boolean = true,
+    val bluetoothPermissionPermanentlyDenied: Boolean = false,
     val isPersistentMode: Boolean = false,
     val connectedDeviceAddress: String? = null,
     val bondedDevices: List<BluetoothDevice> = emptyList(),

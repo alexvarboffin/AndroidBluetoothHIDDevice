@@ -63,6 +63,7 @@ fun HidScreen(
     viewModel: HidViewModel,
     onEnableBluetooth: () -> Unit,
     onMakeDiscoverable: () -> Unit,
+    onRequestBluetoothPermission: () -> Unit,
     onImportPresets: () -> Unit,
     onExportPresets: (includeSensitive: Boolean) -> Unit
 ) {
@@ -142,10 +143,12 @@ fun HidScreen(
                 uiState = uiState,
                 onEnableBluetooth = onEnableBluetooth,
                 onMakeDiscoverable = onMakeDiscoverable,
+                onRequestBluetoothPermission = onRequestBluetoothPermission,
                 onTogglePersistence = viewModel::togglePersistence,
                 onForceReset = viewModel::forceReset,
                 onSendTestKey = { viewModel.sendText("A") },
                 onOpenCalculator = viewModel::openCalculatorOnHost,
+                onSendSymbolTest = viewModel::sendHidSymbolTest,
                 onConnect = viewModel::connect,
                 onDisconnect = viewModel::disconnect
             )
@@ -261,10 +264,12 @@ fun DevicesTab(
     uiState: HidUiState,
     onEnableBluetooth: () -> Unit,
     onMakeDiscoverable: () -> Unit,
+    onRequestBluetoothPermission: () -> Unit,
     onTogglePersistence: (Boolean) -> Unit,
     onForceReset: () -> Unit,
     onSendTestKey: () -> Unit,
     onOpenCalculator: () -> Unit,
+    onSendSymbolTest: () -> Unit,
     onConnect: (BluetoothDevice) -> Unit,
     onDisconnect: (BluetoothDevice) -> Unit
 ) {
@@ -297,6 +302,30 @@ fun DevicesTab(
         ) {
             Text("Enable Bluetooth")
         }
+    }
+
+    if (!uiState.bluetoothConnectGranted) {
+        Button(
+            onClick = onRequestBluetoothPermission,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                if (uiState.bluetoothPermissionPermanentlyDenied) {
+                    "Open settings"
+                } else {
+                    "Allow Bluetooth"
+                }
+            )
+        }
+        Text(
+            text = if (uiState.bluetoothPermissionPermanentlyDenied) {
+                "Bluetooth permission is blocked. Enable it in system settings, then return to the app."
+            } else {
+                "Bluetooth permission is required to pair and send keys."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
     }
 
     InstructionsSection()
@@ -359,6 +388,21 @@ fun DevicesTab(
             Text("Win+R calc")
         }
     }
+
+    Button(
+        onClick = onSendSymbolTest,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        enabled = uiState.isConnected
+    ) {
+        Text("Send HID symbols")
+    }
+    Text(
+        text = HidDeviceManager.PRINTABLE_SYMBOL_TEST,
+        style = MaterialTheme.typography.bodySmall,
+        color = Color.Gray
+    )
 
     Text(
         text = "Note: Buttons are only active when connected",

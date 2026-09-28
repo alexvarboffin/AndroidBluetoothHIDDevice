@@ -1,5 +1,6 @@
 package com.walhalla.bluetoothhiddevice
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -8,11 +9,14 @@ import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import java.util.concurrent.Executors
 
 import android.os.Handler
 import android.os.Looper
+import androidx.core.content.ContextCompat
 
 class HidDeviceManager(private val context: Context) {
 
@@ -61,6 +65,11 @@ class HidDeviceManager(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     fun refreshConnectionState() {
+        if (!hasBluetoothConnectPermission()) {
+            updateStatus("Bluetooth permission required")
+            return
+        }
+
         if (bluetoothHidDevice == null) {
             updateStatus("Initializing HID Service...")
             adapter?.getProfileProxy(context, profileServiceListener, BluetoothProfile.HID_DEVICE)
@@ -72,7 +81,13 @@ class HidDeviceManager(private val context: Context) {
             return
         }
 
-        val connectedDevices = bluetoothHidDevice?.getConnectedDevices() ?: emptyList()
+        val connectedDevices = try {
+            bluetoothHidDevice?.getConnectedDevices() ?: emptyList()
+        } catch (e: SecurityException) {
+            Log.w(TAG, "BLUETOOTH_CONNECT missing", e)
+            updateStatus("Bluetooth permission required")
+            return
+        }
         if (connectedDevices.isNotEmpty()) {
             val device = connectedDevices.first()
             connectedDevice = device
@@ -146,19 +161,34 @@ class HidDeviceManager(private val context: Context) {
     }
 
     init {
-        adapter?.getProfileProxy(context, profileServiceListener, BluetoothProfile.HID_DEVICE)
+        if (hasBluetoothConnectPermission()) {
+            adapter?.getProfileProxy(context, profileServiceListener, BluetoothProfile.HID_DEVICE)
+        }
     }
 
     @SuppressLint("MissingPermission")
     fun requestDiscoverable(activity: android.app.Activity) {
+        if (!hasBluetoothConnectPermission()) {
+            updateStatus("Bluetooth permission required")
+            return
+        }
         val discoverableIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
             putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
         }
-        activity.startActivity(discoverableIntent)
+        try {
+            activity.startActivity(discoverableIntent)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "BLUETOOTH_CONNECT missing", e)
+            updateStatus("Bluetooth permission required")
+        }
     }
 
     @SuppressLint("MissingPermission")
     private fun registerApp() {
+        if (!hasBluetoothConnectPermission()) {
+            updateStatus("Bluetooth permission required")
+            return
+        }
         val sdp = BluetoothHidDeviceAppSdpSettings(
             "HID Keyboard",
             "Android HID Keyboard emulated by Walhalla",
@@ -174,7 +204,20 @@ class HidDeviceManager(private val context: Context) {
         //     BluetoothHidDevice.SUBCLASS1_COMBO,
         //     HID_REPORT_DESCRIPTOR
         // )
-        bluetoothHidDevice?.registerApp(sdp, null, null, Executors.newSingleThreadExecutor(), callback)
+        try {
+            bluetoothHidDevice?.registerApp(sdp, null, null, Executors.newSingleThreadExecutor(), callback)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "BLUETOOTH_CONNECT missing", e)
+            updateStatus("Bluetooth permission required")
+        }
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.BLUETOOTH_CONNECT
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     @SuppressLint("MissingPermission")
@@ -361,9 +404,37 @@ class HidDeviceManager(private val context: Context) {
             '0' -> 0x27.toByte() to false
             ' ' -> 0x2C.toByte() to false
             '\n' -> 0x28.toByte() to false
-            '.' -> 0x37.toByte() to false
-            ',' -> 0x36.toByte() to false
             '!' -> 0x1E.toByte() to true
+            '@' -> 0x1F.toByte() to true
+            '#' -> 0x20.toByte() to true
+            '$' -> 0x21.toByte() to true
+            '%' -> 0x22.toByte() to true
+            '^' -> 0x23.toByte() to true
+            '&' -> 0x24.toByte() to true
+            '*' -> 0x25.toByte() to true
+            '(' -> 0x26.toByte() to true
+            ')' -> 0x27.toByte() to true
+            '-' -> 0x2D.toByte() to false
+            '_' -> 0x2D.toByte() to true
+            '=' -> 0x2E.toByte() to false
+            '+' -> 0x2E.toByte() to true
+            '[' -> 0x2F.toByte() to false
+            '{' -> 0x2F.toByte() to true
+            ']' -> 0x30.toByte() to false
+            '}' -> 0x30.toByte() to true
+            '\\' -> 0x31.toByte() to false
+            '|' -> 0x31.toByte() to true
+            ';' -> 0x33.toByte() to false
+            ':' -> 0x33.toByte() to true
+            '\'' -> 0x34.toByte() to false
+            '"' -> 0x34.toByte() to true
+            '`' -> 0x35.toByte() to false
+            '~' -> 0x35.toByte() to true
+            ',' -> 0x36.toByte() to false
+            '<' -> 0x36.toByte() to true
+            '.' -> 0x37.toByte() to false
+            '>' -> 0x37.toByte() to true
+            '/' -> 0x38.toByte() to false
             '?' -> 0x38.toByte() to true
             else -> 0.toByte() to false
         }
@@ -385,6 +456,11 @@ class HidDeviceManager(private val context: Context) {
         private const val MOD_LEFT_ALT: Byte = 0x04
         private const val MOD_LEFT_GUI: Byte = 0x08
         private const val KEY_R: Byte = 0x15
+
+        /** US QWERTY printable set. No Enter, so a password field is not submitted. */
+        const val PRINTABLE_SYMBOL_TEST =
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 " +
+                "`-=[]\\;',./~!@#\$%^&*()_+{}|:\"<>?"
 
         // Minimal Keyboard Report Descriptor
         private val HID_REPORT_DESCRIPTOR = byteArrayOf(

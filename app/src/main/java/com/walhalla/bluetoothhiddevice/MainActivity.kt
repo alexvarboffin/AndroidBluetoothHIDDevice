@@ -5,9 +5,12 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Shader
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.text.Layout
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,6 +53,13 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: HidViewModel by viewModels()
     private var pendingPresetExportJson: String? = null
+    private var pendingBluetoothAction = PendingBluetoothAction.NONE
+
+    private enum class PendingBluetoothAction {
+        NONE,
+        DISCOVERABLE,
+        ENABLE
+    }
 
     private val enableBluetoothLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -62,9 +72,18 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.entries.all { it.value }
-        if (allGranted) {
-            checkBluetoothState()
+        val bluetoothGranted = viewModel.isBluetoothConnectGranted()
+        if (bluetoothGranted) {
+            viewModel.resume()
+            if (pendingBluetoothAction == PendingBluetoothAction.NONE) {
+                checkBluetoothState()
+            } else {
+                consumePendingBluetoothAction()
+            }
+        } else {
+            val permanentlyDenied = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                !shouldShowRequestPermissionRationale(Manifest.permission.BLUETOOTH_CONNECT)
+            viewModel.noteBluetoothPermissionDenied(permanentlyDenied)
         }
     }
 
@@ -137,8 +156,9 @@ class MainActivity : ComponentActivity() {
 
                 HidScreen(
                     viewModel = viewModel,
-                    onEnableBluetooth = { checkBluetoothState() },
-                    onMakeDiscoverable = { viewModel.makeDiscoverable(this) },
+                    onEnableBluetooth = { requestBluetoothThen(PendingBluetoothAction.ENABLE) },
+                    onMakeDiscoverable = { requestBluetoothThen(PendingBluetoothAction.DISCOVERABLE) },
+                    onRequestBluetoothPermission = { requestBluetoothThen(PendingBluetoothAction.NONE) },
                     onImportPresets = { importPresetsLauncher.launch(arrayOf("application/json")) },
                     onExportPresets = { includeSensitive ->
                         viewModel.exportPresetsJson(includeSensitive) { json ->
@@ -156,6 +176,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.resume()
+        consumePendingBluetoothAction()
     }
 
     override fun onStop() {
@@ -174,10 +195,50 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkBluetoothState() {
+        if (!viewModel.isBluetoothConnectGranted()) return
         if (!viewModel.checkBluetoothEnabled()) {
             val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-            enableBluetoothLauncher.launch(enableBtIntent)
+            try {
+                enableBluetoothLauncher.launch(enableBtIntent)
+            } catch (e: SecurityException) {
+                Log.w("MainActivity", "BLUETOOTH_CONNECT missing", e)
+                viewModel.noteBluetoothPermissionDenied(permanentlyDenied = false)
+            }
         }
+    }
+
+    private fun requestBluetoothThen(action: PendingBluetoothAction) {
+        if (viewModel.isBluetoothConnectGranted()) {
+            pendingBluetoothAction = action
+            consumePendingBluetoothAction()
+            return
+        }
+        if (action != PendingBluetoothAction.NONE) {
+            pendingBluetoothAction = action
+        }
+        if (viewModel.uiState.value.bluetoothPermissionPermanentlyDenied) {
+            openAppSettings()
+            return
+        }
+        checkPermissions()
+    }
+
+    private fun consumePendingBluetoothAction() {
+        if (!viewModel.isBluetoothConnectGranted()) return
+        val action = pendingBluetoothAction
+        pendingBluetoothAction = PendingBluetoothAction.NONE
+        when (action) {
+            PendingBluetoothAction.DISCOVERABLE -> viewModel.makeDiscoverable(this)
+            PendingBluetoothAction.ENABLE -> checkBluetoothState()
+            PendingBluetoothAction.NONE -> Unit
+        }
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
+        }
+        startActivity(intent)
     }
 
     private fun checkPermissions() {
