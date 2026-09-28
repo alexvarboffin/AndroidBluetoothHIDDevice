@@ -409,6 +409,7 @@ class HidDeviceManager(private val context: Context) {
     }
 
     private fun charToKeyCode(char: Char): Pair<Byte, Boolean> {
+        cyrillicToKeyCode(char)?.let { return it }
         return when (char) {
             in 'a'..'z' -> (0x04 + (char - 'a')).toByte() to false
             in 'A'..'Z' -> (0x04 + (char - 'A')).toByte() to true
@@ -452,6 +453,13 @@ class HidDeviceManager(private val context: Context) {
         }
     }
 
+    /** Russian ЙЦУКЕН letter → the US key in the same position. Host must use a Russian layout. */
+    private fun cyrillicToKeyCode(char: Char): Pair<Byte, Boolean>? {
+        val index = CYRILLIC_JCUKEN.indexOf(char.lowercaseChar())
+        if (index < 0) return null
+        return CYRILLIC_HID_KEYS[index] to char.isUpperCase()
+    }
+
     fun unregister() {
         if (isRegistered) {
             try {
@@ -468,6 +476,13 @@ class HidDeviceManager(private val context: Context) {
         private const val MOD_LEFT_ALT: Byte = 0x04
         private const val MOD_LEFT_GUI: Byte = 0x08
         private const val KEY_R: Byte = 0x15
+
+        private const val CYRILLIC_JCUKEN = "ёйцукенгшщзхъфывапролджэячсмитьбю"
+        private val CYRILLIC_HID_KEYS = byteArrayOf(
+            0x35, 0x14, 0x1A, 0x08, 0x15, 0x17, 0x1C, 0x18, 0x0C, 0x12, 0x13, 0x2F, 0x30,
+            0x04, 0x16, 0x07, 0x09, 0x0A, 0x0B, 0x0D, 0x0E, 0x0F, 0x33, 0x34,
+            0x1D, 0x1B, 0x06, 0x19, 0x05, 0x11, 0x10, 0x36, 0x37
+        )
 
         /** US QWERTY printable set. No Enter, so a password field is not submitted. */
         const val PRINTABLE_SYMBOL_TEST =

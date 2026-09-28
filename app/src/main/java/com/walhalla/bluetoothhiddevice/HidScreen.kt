@@ -383,7 +383,7 @@ fun TypeTab(
                 label = { Text("Type to host") }
             )
             Text(
-                text = "US keyboard characters are sent as you type. Other characters are skipped.",
+                text = "EN needs a US host layout. Russian letters need a Russian host layout. Other characters are skipped.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
