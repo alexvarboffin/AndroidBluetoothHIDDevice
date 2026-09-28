@@ -18,6 +18,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.BluetoothConnected
@@ -113,12 +116,28 @@ fun HidScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Devices") }
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Filled.Bluetooth, contentDescription = null)
+                            Text("Devices")
+                        }
+                    }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Presets") }
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Filled.Bookmarks, contentDescription = null)
+                            Text("Presets")
+                        }
+                    }
                 )
             }
 
@@ -242,6 +261,7 @@ fun HidScreen(
 
 @Composable
 fun StatusTopBarTitle(status: String, isConnected: Boolean, isBluetoothOff: Boolean) {
+    val statusTint = statusColor(status, isConnected, isBluetoothOff)
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = "Bluetooth HID Device",
@@ -249,13 +269,24 @@ fun StatusTopBarTitle(status: String, isConnected: Boolean, isBluetoothOff: Bool
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Text(
-            text = status,
-            style = MaterialTheme.typography.labelSmall,
-            color = statusColor(status, isConnected, isBluetoothOff),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = statusIcon(status, isConnected, isBluetoothOff),
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = statusTint
+            )
+            Text(
+                text = status,
+                style = MaterialTheme.typography.labelSmall,
+                color = statusTint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -441,11 +472,22 @@ fun StatusCard(status: String, isConnected: Boolean, isBluetoothOff: Boolean) {
     }
 }
 
+@Composable
 private fun statusColor(status: String, isConnected: Boolean, isBluetoothOff: Boolean): Color {
     return when {
-        isConnected -> Color(0xFF2E7D32)
-        isStatusError(status, isBluetoothOff) -> Color(0xFFC62828)
-        else -> Color.Unspecified
+        isConnected -> MaterialTheme.colorScheme.primary
+        isStatusError(status, isBluetoothOff) -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+}
+
+@Composable
+private fun statusIcon(status: String, isConnected: Boolean, isBluetoothOff: Boolean): ImageVector {
+    return when {
+        isBluetoothOff -> Icons.Filled.BluetoothDisabled
+        isConnected -> Icons.Filled.BluetoothConnected
+        isStatusError(status, isBluetoothOff) -> Icons.Filled.Error
+        else -> Icons.Filled.Bluetooth
     }
 }
 
@@ -544,6 +586,26 @@ fun HostCommandPresetMenu(
 }
 
 @Composable
+private fun PresetGroupCard(
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
 fun PresetsTab(
     uiState: HidUiState,
     onSelectCategory: (Long) -> Unit,
@@ -561,11 +623,12 @@ fun PresetsTab(
     val viewLayout = remember(viewLayoutName) { PresetViewLayout.valueOf(viewLayoutName) }
     val onViewLayoutSelected: (PresetViewLayout) -> Unit = { viewLayoutName = it.name }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    PresetGroupCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
         Text(
             text = "All presets",
             modifier = Modifier.weight(1f),
@@ -589,9 +652,11 @@ fun PresetsTab(
             )
         }
         //Spacer(modifier = Modifier.width(8.dp))
+        }
     }
 
-    FlowRow(
+    PresetGroupCard {
+        FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.Center,
@@ -616,14 +681,16 @@ fun PresetsTab(
             onSelectCategory = onSelectCategory
         )
     }
+    }
     val selectedCategory =
         uiState.presetCategories.firstOrNull { it.id == uiState.selectedPresetCategoryId }
     if (selectedCategory != null) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        PresetGroupCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
             Text(
                 text = if (selectedCategory.isBuiltIn) {
                     "${selectedCategory.title} *"
@@ -657,16 +724,20 @@ fun PresetsTab(
                 )
             }
         }
+        }
     }
 
     if (uiState.selectedPresetCategoryId != null) {
-        PresetViewLayoutSwitcher(
-            selectedLayout = viewLayout,
-            onLayoutSelected = onViewLayoutSelected
-        )
+        PresetGroupCard {
+            PresetViewLayoutSwitcher(
+                selectedLayout = viewLayout,
+                onLayoutSelected = onViewLayoutSelected
+            )
+        }
     }
 
-    if (uiState.presets.isEmpty()) {
+    PresetGroupCard {
+        if (uiState.presets.isEmpty()) {
         Text(
             text = "No presets in this category yet.",
             style = MaterialTheme.typography.bodyMedium,
@@ -715,6 +786,7 @@ fun PresetsTab(
                 }
             }
         }
+    }
     }
 }
 
