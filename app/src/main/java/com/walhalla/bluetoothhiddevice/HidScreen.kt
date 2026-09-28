@@ -89,6 +89,12 @@ fun HidScreen(
     var showDeleteCategoryDialog by remember { mutableStateOf(false) }
     var presetPendingDelete by remember { mutableStateOf<PresetEntity?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showGroupColorDialog by remember { mutableStateOf(false) }
+    var viewLayoutName by rememberSaveable { mutableStateOf(PresetViewLayout.LIST.name) }
+    val viewLayout = remember(viewLayoutName) { PresetViewLayout.valueOf(viewLayoutName) }
+    val onViewLayoutSelected: (PresetViewLayout) -> Unit = { viewLayoutName = it.name }
+    val selectedPresetCategory = uiState.presetCategories
+        .firstOrNull { it.id == uiState.selectedPresetCategoryId }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     BackHandler(enabled = selectedTab != 0) {
@@ -98,6 +104,7 @@ fun HidScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
+            if (!isLandscape) {
             CenterAlignedTopAppBar(
                 title = {
                     StatusTopBarTitle(
@@ -107,26 +114,6 @@ fun HidScreen(
                     )
                 },
                 actions = {
-                    if (isLandscape) {
-                        ToolbarTabAction(
-                            selected = selectedTab == 0,
-                            icon = Icons.Filled.Bluetooth,
-                            contentDescription = "Devices",
-                            onClick = { selectedTab = 0 }
-                        )
-                        ToolbarTabAction(
-                            selected = selectedTab == 1,
-                            icon = Icons.Filled.Bookmarks,
-                            contentDescription = "Presets",
-                            onClick = { selectedTab = 1 }
-                        )
-                        ToolbarTabAction(
-                            selected = selectedTab == 2,
-                            icon = Icons.Filled.Keyboard,
-                            contentDescription = "Type",
-                            onClick = { selectedTab = 2 }
-                        )
-                    }
                     HostCommandPresetMenu(
                         enabled = uiState.isConnected,
                         categories = uiState.presetCategories,
@@ -136,13 +123,49 @@ fun HidScreen(
                     )
                 }
             )
+            }
         }
     ) { innerPadding ->
-        Column(
+        Row(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
                 .imePadding()
+        ) {
+        if (isLandscape) {
+            LandscapeIconRail(
+                selectedTab = selectedTab,
+                onSelectTab = { selectedTab = it },
+                status = uiState.status,
+                isConnected = uiState.isConnected,
+                isBluetoothOff = uiState.isBluetoothOff,
+                commandMenu = {
+                    HostCommandPresetMenu(
+                        enabled = uiState.isConnected,
+                        categories = uiState.presetCategories,
+                        presets = uiState.allPresets,
+                        actionTypes = uiState.presetActionTypes,
+                        onRunPreset = viewModel::requestRunPreset
+                    )
+                },
+                presetsMenu = {
+                    PresetLayoutMenu(
+                        selectedLayout = viewLayout,
+                        onLayoutSelected = onViewLayoutSelected,
+                        onImportPresets = onImportPresets,
+                        onExportPresets = { showExportDialog = true },
+                        selectedCategory = selectedPresetCategory,
+                        onPickGroupColor = { showGroupColorDialog = true },
+                        onAddPreset = { showPresetEditor = true },
+                        onDeleteCategory = { showDeleteCategoryDialog = true }
+                    )
+                }
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
         ) {
             if (!isLandscape) {
             PrimaryTabRow(selectedTabIndex = selectedTab) {
@@ -202,6 +225,10 @@ fun HidScreen(
                     onDeleteCategory = { showDeleteCategoryDialog = true },
                     onImportPresets = onImportPresets,
                     onExportPresets = { showExportDialog = true },
+                    onPickGroupColor = { showGroupColorDialog = true },
+                    viewLayout = viewLayout,
+                    onViewLayoutSelected = onViewLayoutSelected,
+                    showLayoutFab = !isLandscape,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -238,6 +265,7 @@ fun HidScreen(
             }
             }
             }
+        }
         }
     }
 
@@ -311,6 +339,17 @@ fun HidScreen(
         )
     }
 
+    if (showGroupColorDialog && selectedPresetCategory != null) {
+        GroupColorDialog(
+            selectedArgb = selectedPresetCategory.colorArgb,
+            onDismiss = { showGroupColorDialog = false },
+            onSelect = { colorArgb ->
+                showGroupColorDialog = false
+                viewModel.setSelectedPresetCategoryColor(colorArgb)
+            }
+        )
+    }
+
     if (showExportDialog) {
         ExportPresetsDialog(
             onDismiss = { showExportDialog = false },
@@ -322,6 +361,89 @@ fun HidScreen(
                 showExportDialog = false
                 onExportPresets(true)
             }
+        )
+    }
+}
+
+@Composable
+private fun LandscapeIconRail(
+    selectedTab: Int,
+    onSelectTab: (Int) -> Unit,
+    status: String,
+    isConnected: Boolean,
+    isBluetoothOff: Boolean,
+    commandMenu: @Composable () -> Unit,
+    presetsMenu: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(48.dp)
+            .fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        StatusLamp(
+            status = status,
+            isConnected = isConnected,
+            isBluetoothOff = isBluetoothOff,
+            modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            ToolbarTabAction(
+                selected = selectedTab == 0,
+                icon = Icons.Filled.Bluetooth,
+                contentDescription = "Devices",
+                onClick = { onSelectTab(0) }
+            )
+            ToolbarTabAction(
+                selected = selectedTab == 1,
+                icon = Icons.Filled.Bookmarks,
+                contentDescription = "Presets",
+                onClick = { onSelectTab(1) }
+            )
+            ToolbarTabAction(
+                selected = selectedTab == 2,
+                icon = Icons.Filled.Keyboard,
+                contentDescription = "Type",
+                onClick = { onSelectTab(2) }
+            )
+            commandMenu()
+        }
+        presetsMenu()
+    }
+}
+
+@Composable
+private fun StatusLamp(
+    status: String,
+    isConnected: Boolean,
+    isBluetoothOff: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val container = when {
+        isConnected -> MaterialTheme.colorScheme.primaryContainer
+        isStatusError(status, isBluetoothOff) -> MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val glyph = when {
+        isConnected -> MaterialTheme.colorScheme.onPrimaryContainer
+        isStatusError(status, isBluetoothOff) -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.outline
+    }
+    Box(
+        modifier = modifier
+            .size(18.dp)
+            .background(container, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = statusIcon(status, isConnected, isBluetoothOff),
+            contentDescription = status,
+            modifier = Modifier.size(12.dp),
+            tint = glyph
         )
     }
 }
@@ -773,7 +895,7 @@ private fun PresetGroupCard(
 }
 
 @Composable
-fun PresetsTab(
+private fun PresetsTab(
     uiState: HidUiState,
     onSelectCategory: (Long) -> Unit,
     onRunPreset: (PresetEntity) -> Unit,
@@ -786,12 +908,12 @@ fun PresetsTab(
     onDeleteCategory: () -> Unit,
     onImportPresets: () -> Unit,
     onExportPresets: () -> Unit,
+    onPickGroupColor: () -> Unit,
+    viewLayout: PresetViewLayout,
+    onViewLayoutSelected: (PresetViewLayout) -> Unit,
+    showLayoutFab: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var showGroupColorDialog by remember { mutableStateOf(false) }
-    var viewLayoutName by rememberSaveable { mutableStateOf(PresetViewLayout.LIST.name) }
-    val viewLayout = remember(viewLayoutName) { PresetViewLayout.valueOf(viewLayoutName) }
-    val onViewLayoutSelected: (PresetViewLayout) -> Unit = { viewLayoutName = it.name }
     val selectedCategory =
         uiState.presetCategories.firstOrNull { it.id == uiState.selectedPresetCategoryId }
     val groupColorArgb = selectedCategory?.colorArgb ?: 0
@@ -806,7 +928,7 @@ fun PresetsTab(
     LazyVerticalGrid(
         columns = columns,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = if (showLayoutFab) 88.dp else 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -882,29 +1004,20 @@ fun PresetsTab(
     }
     }
 
+    if (showLayoutFab) {
     PresetLayoutMenu(
         selectedLayout = viewLayout,
         onLayoutSelected = onViewLayoutSelected,
         onImportPresets = onImportPresets,
         onExportPresets = onExportPresets,
         selectedCategory = selectedCategory,
-        onPickGroupColor = { showGroupColorDialog = true },
+        onPickGroupColor = onPickGroupColor,
         onAddPreset = onAddPreset,
         onDeleteCategory = onDeleteCategory,
         modifier = Modifier
             .align(Alignment.BottomEnd)
             .padding(16.dp)
     )
-
-    if (showGroupColorDialog && selectedCategory != null) {
-        GroupColorDialog(
-            selectedArgb = selectedCategory.colorArgb,
-            onDismiss = { showGroupColorDialog = false },
-            onSelect = { colorArgb ->
-                showGroupColorDialog = false
-                onCategoryColorChange(colorArgb)
-            }
-        )
     }
     }
 }
