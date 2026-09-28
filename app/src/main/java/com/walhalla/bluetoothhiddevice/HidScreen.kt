@@ -3,6 +3,7 @@ package com.walhalla.bluetoothhiddevice
 import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -88,6 +89,7 @@ fun HidScreen(
     var showDeleteCategoryDialog by remember { mutableStateOf(false) }
     var presetPendingDelete by remember { mutableStateOf<PresetEntity?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     BackHandler(enabled = selectedTab != 0) {
         selectedTab = 0
@@ -105,6 +107,26 @@ fun HidScreen(
                     )
                 },
                 actions = {
+                    if (isLandscape) {
+                        ToolbarTabAction(
+                            selected = selectedTab == 0,
+                            icon = Icons.Filled.Bluetooth,
+                            contentDescription = "Devices",
+                            onClick = { selectedTab = 0 }
+                        )
+                        ToolbarTabAction(
+                            selected = selectedTab == 1,
+                            icon = Icons.Filled.Bookmarks,
+                            contentDescription = "Presets",
+                            onClick = { selectedTab = 1 }
+                        )
+                        ToolbarTabAction(
+                            selected = selectedTab == 2,
+                            icon = Icons.Filled.Keyboard,
+                            contentDescription = "Type",
+                            onClick = { selectedTab = 2 }
+                        )
+                    }
                     HostCommandPresetMenu(
                         enabled = uiState.isConnected,
                         categories = uiState.presetCategories,
@@ -122,6 +144,7 @@ fun HidScreen(
                 .fillMaxSize()
                 .imePadding()
         ) {
+            if (!isLandscape) {
             PrimaryTabRow(selectedTabIndex = selectedTab) {
                 Tab(
                     selected = selectedTab == 0,
@@ -162,6 +185,7 @@ fun HidScreen(
                         }
                     }
                 )
+            }
             }
 
             if (selectedTab == 1) {
@@ -297,6 +321,26 @@ fun HidScreen(
             onExportIncludingSensitive = {
                 showExportDialog = false
                 onExportPresets(true)
+            }
+        )
+    }
+}
+
+@Composable
+private fun ToolbarTabAction(
+    selected: Boolean,
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             }
         )
     }
@@ -758,46 +802,16 @@ fun PresetsTab(
         PresetViewLayout.GRID_4 -> GridCells.Adaptive(76.dp)
     }
 
+    Box(modifier) {
     LazyVerticalGrid(
         columns = columns,
-        modifier = modifier,
-        contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-    item(span = { GridItemSpan(maxLineSpan) }) {
-    PresetGroupCard(Modifier.padding(horizontal = 12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-        Text(
-            text = "All presets",
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        FilledTonalIconButton(onClick = onImportPresets) {
-            Icon(
-                imageVector = Icons.Filled.FileDownload,
-                contentDescription = "Import all presets"
-            )
-        }
-        //Spacer(modifier = Modifier.width(8.dp))
-        FilledTonalIconButton(onClick = onExportPresets) {
-            Icon(
-                imageVector = Icons.Filled.FileUpload,
-                contentDescription = "Export all presets"
-            )
-        }
-        //Spacer(modifier = Modifier.width(8.dp))
-        }
-    }
-    }
+    //Spacer(modifier = Modifier.width(8.dp))
+    //Spacer(modifier = Modifier.width(8.dp))
 
     item(span = { GridItemSpan(maxLineSpan) }) {
     PresetGroupCard(Modifier.padding(horizontal = 12.dp)) {
@@ -827,71 +841,6 @@ fun PresetsTab(
         )
     }
     }
-    }
-
-    if (selectedCategory != null) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-        PresetGroupCard(Modifier.padding(horizontal = 12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-            Text(
-                text = if (selectedCategory.isBuiltIn) {
-                    "${selectedCategory.title} *"
-                } else {
-                    selectedCategory.title
-                },
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            FilledTonalIconButton(
-                onClick = { showGroupColorDialog = true },
-                colors = groupColorButtonColors(selectedCategory.colorArgb)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Palette,
-                    contentDescription = "Group color"
-                )
-            }
-            FilledTonalIconButton(onClick = onAddPreset) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "Add preset"
-                )
-            }
-            FilledTonalIconButton(
-                onClick = onDeleteCategory,
-                enabled = !selectedCategory.isBuiltIn,
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Delete group"
-                )
-            }
-        }
-        }
-        }
-    }
-
-    if (uiState.selectedPresetCategoryId != null) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            PresetGroupCard {
-                PresetViewLayoutSwitcher(
-                    selectedLayout = viewLayout,
-                    onLayoutSelected = onViewLayoutSelected
-                )
-            }
-        }
     }
 
     if (uiState.presets.isEmpty()) {
@@ -933,6 +882,20 @@ fun PresetsTab(
     }
     }
 
+    PresetLayoutMenu(
+        selectedLayout = viewLayout,
+        onLayoutSelected = onViewLayoutSelected,
+        onImportPresets = onImportPresets,
+        onExportPresets = onExportPresets,
+        selectedCategory = selectedCategory,
+        onPickGroupColor = { showGroupColorDialog = true },
+        onAddPreset = onAddPreset,
+        onDeleteCategory = onDeleteCategory,
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(16.dp)
+    )
+
     if (showGroupColorDialog && selectedCategory != null) {
         GroupColorDialog(
             selectedArgb = selectedCategory.colorArgb,
@@ -942,6 +905,7 @@ fun PresetsTab(
                 onCategoryColorChange(colorArgb)
             }
         )
+    }
     }
 }
 
@@ -966,42 +930,171 @@ fun PresetCategoryChips(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PresetViewLayoutSwitcher(
+private fun PresetLayoutMenu(
     selectedLayout: PresetViewLayout,
     onLayoutSelected: (PresetViewLayout) -> Unit,
+    onImportPresets: () -> Unit,
+    onExportPresets: () -> Unit,
+    selectedCategory: PresetCategoryEntity?,
+    onPickGroupColor: () -> Unit,
+    onAddPreset: () -> Unit,
+    onDeleteCategory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
-        SegmentedButton(
-            selected = selectedLayout == PresetViewLayout.LIST,
-            onClick = { onLayoutSelected(PresetViewLayout.LIST) },
-            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 4),
-            icon = { Icon(Icons.Filled.ViewList, contentDescription = null) },
-            label = { Text("List") }
-        )
-        SegmentedButton(
-            selected = selectedLayout == PresetViewLayout.GRID_2,
-            onClick = { onLayoutSelected(PresetViewLayout.GRID_2) },
-            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 4),
-            icon = { Icon(Icons.Filled.ViewModule, contentDescription = null) },
-            label = { Text("×2") }
-        )
-        SegmentedButton(
-            selected = selectedLayout == PresetViewLayout.GRID_3,
-            onClick = { onLayoutSelected(PresetViewLayout.GRID_3) },
-            shape = SegmentedButtonDefaults.itemShape(index = 2, count = 4),
-            icon = { Icon(Icons.Filled.Apps, contentDescription = null) },
-            label = { Text("×3") }
-        )
-        SegmentedButton(
-            selected = selectedLayout == PresetViewLayout.GRID_4,
-            onClick = { onLayoutSelected(PresetViewLayout.GRID_4) },
-            shape = SegmentedButtonDefaults.itemShape(index = 3, count = 4),
-            icon = { Icon(Icons.Filled.GridView, contentDescription = null) },
-            label = { Text("×4") }
-        )
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier) {
+        SmallFloatingActionButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = presetLayoutIcon(selectedLayout),
+                contentDescription = "Presets menu"
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(28.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (selectedCategory != null) {
+                    Text(
+                        text = if (selectedCategory.isBuiltIn) {
+                            "${selectedCategory.title} *"
+                        } else {
+                            selectedCategory.title
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                expanded = false
+                                onPickGroupColor()
+                            },
+                            colors = groupColorButtonColors(selectedCategory.colorArgb)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Palette,
+                                contentDescription = "Group color"
+                            )
+                        }
+                        FilledTonalIconButton(
+                            onClick = {
+                                expanded = false
+                                onAddPreset()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = "Add preset"
+                            )
+                        }
+                        FilledTonalIconButton(
+                            onClick = {
+                                expanded = false
+                                onDeleteCategory()
+                            },
+                            enabled = !selectedCategory.isBuiltIn,
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = "Delete group"
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "View",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PresetViewLayout.entries.forEach { layout ->
+                        FilterChip(
+                            selected = layout == selectedLayout,
+                            onClick = {
+                                expanded = false
+                                onLayoutSelected(layout)
+                            },
+                            label = { Text(presetLayoutLabel(layout)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = presetLayoutIcon(layout),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+                Text(
+                    text = "All presets",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(
+                        onClick = {
+                            expanded = false
+                            onImportPresets()
+                        },
+                        label = { Text("Import") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.FileDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    )
+                    AssistChip(
+                        onClick = {
+                            expanded = false
+                            onExportPresets()
+                        },
+                        label = { Text("Export") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.FileUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun presetLayoutLabel(layout: PresetViewLayout): String {
+    return when (layout) {
+        PresetViewLayout.LIST -> "List"
+        PresetViewLayout.GRID_2 -> "×2"
+        PresetViewLayout.GRID_3 -> "×3"
+        PresetViewLayout.GRID_4 -> "×4"
+    }
+}
+
+private fun presetLayoutIcon(layout: PresetViewLayout): ImageVector {
+    return when (layout) {
+        PresetViewLayout.LIST -> Icons.Filled.ViewList
+        PresetViewLayout.GRID_2 -> Icons.Filled.ViewModule
+        PresetViewLayout.GRID_3 -> Icons.Filled.Apps
+        PresetViewLayout.GRID_4 -> Icons.Filled.GridView
     }
 }
 
