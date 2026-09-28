@@ -3,6 +3,8 @@ package com.walhalla.bluetoothhiddevice
 import android.R
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -10,6 +12,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -99,7 +103,8 @@ fun HidScreen(
                 .padding(innerPadding)
 
                 .fillMaxSize()
-                .verticalScroll(scrollState) .padding(16.dp),
+                .verticalScroll(scrollState)
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -265,13 +270,18 @@ fun DevicesTab(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Persistent Mode", fontWeight = FontWeight.Bold)
-                Text("Keep connection alive in background", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Keep connection alive in background",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
             Switch(
                 checked = uiState.isPersistentMode,
@@ -332,14 +342,18 @@ fun DevicesTab(
     ) {
         Button(
             onClick = onSendTestKey,
-            modifier = Modifier.weight(1f).height(56.dp),
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
             enabled = uiState.isConnected
         ) {
             Text("Send Test 'A' Key")
         }
         Button(
             onClick = onOpenCalculator,
-            modifier = Modifier.weight(1f).height(56.dp),
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
             enabled = uiState.isConnected
         ) {
             Text("Win+R calc")
@@ -514,16 +528,16 @@ fun PresetsTab(
             Column(verticalArrangement = Arrangement.Center) {
                 Icon(Icons.Filled.FileDownload, contentDescription = null)
                 //Spacer(modifier = Modifier.width(8.dp))
-                Text(text="Import", style= MaterialTheme.typography.labelSmall)
+                Text(text = "Import", style = MaterialTheme.typography.labelSmall)
             }
         }
         OutlinedButton(
             onClick = onExportPresets,
             modifier = Modifier.weight(1f)
         ) {
-           Icon(Icons.Filled.FileUpload, contentDescription = null)
+            Icon(Icons.Filled.FileUpload, contentDescription = null)
             //Spacer(modifier = Modifier.width(8.dp))
-            Text("Export", style= MaterialTheme.typography.labelSmall)
+            Text("Export", style = MaterialTheme.typography.labelSmall)
         }
         Button(
             onClick = onAddPreset,
@@ -531,29 +545,42 @@ fun PresetsTab(
         ) {
             Icon(Icons.Filled.Add, contentDescription = null)
             //Spacer(modifier = Modifier.width(8.dp))
-            Text("Add", style= MaterialTheme.typography.labelSmall)
+            Text("Add", style = MaterialTheme.typography.labelSmall)
         }
     }
 
-    PresetCategoryChips(
-        categories = uiState.presetCategories,
-        selectedCategoryId = uiState.selectedPresetCategoryId,
-        onSelectCategory = onSelectCategory
-    )
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.Center,
+        itemVerticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedButton(
+            onClick = onAddCategory,
+            modifier = Modifier.size(36.dp),
+            shape = CircleShape,
+            contentPadding = PaddingValues(0.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Add Group")
+        }
 
-    val selectedCategory = uiState.presetCategories.firstOrNull { it.id == uiState.selectedPresetCategoryId }
+        PresetCategoryChips(
+            categories = uiState.presetCategories,
+            selectedCategoryId = uiState.selectedPresetCategoryId,
+            onSelectCategory = onSelectCategory
+        )
+    }
+    val selectedCategory =
+        uiState.presetCategories.firstOrNull { it.id == uiState.selectedPresetCategoryId }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        OutlinedButton(
-            onClick = onAddCategory,
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add group")
-        }
+
         OutlinedButton(
             enabled = selectedCategory?.isBuiltIn == false,
             onClick = onDeleteCategory,
@@ -596,6 +623,7 @@ fun PresetsTab(
                     )
                 }
             }
+
             PresetViewLayout.GRID_2,
             PresetViewLayout.GRID_3 -> {
                 val columns = if (viewLayout == PresetViewLayout.GRID_2) 2 else 3
@@ -632,25 +660,18 @@ fun PresetCategoryChips(
     selectedCategoryId: Long?,
     onSelectCategory: (Long) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        categories.chunked(2).forEach { categoryColumn ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                categoryColumn.forEach { category ->
-                    FilterChip(
-                        selected = selectedCategoryId == category.id,
-                        onClick = { onSelectCategory(category.id) },
-                        label = {
-                            Text(if (category.isBuiltIn) "${category.title} *" else category.title)
-                        }
-                    )
-                }
+    categories.chunked(2).forEach { categoryColumn ->
+        //Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            categoryColumn.forEach { category ->
+                FilterChip(
+                    selected = selectedCategoryId == category.id,
+                    onClick = { onSelectCategory(category.id) },
+                    label = {
+                        Text(if (category.isBuiltIn) "${category.title} *" else category.title)
+                    }
+                )
             }
-        }
+        //}
     }
 }
 
@@ -716,7 +737,9 @@ fun PresetGridCard(
             }
         )
     ) {
-        Box(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp)) {
             IconButton(
                 onClick = { menuExpanded = true },
                 modifier = Modifier
@@ -826,7 +849,9 @@ fun PresetListCard(
         )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1122,7 +1147,11 @@ fun PresetEditorDialog(
 ) {
     val defaultPresetName = remember { generateDefaultPresetName() }
     var title by remember(initialTitle) { mutableStateOf(initialTitle ?: defaultPresetName) }
-    var description by remember(initialDescription) { mutableStateOf(initialDescription ?: defaultPresetName) }
+    var description by remember(initialDescription) {
+        mutableStateOf(
+            initialDescription ?: defaultPresetName
+        )
+    }
     var value by remember(initialValue) { mutableStateOf(initialValue) }
     var login by remember(initialLogin) { mutableStateOf(initialLogin) }
     var password by remember(initialPassword) { mutableStateOf(initialPassword) }
@@ -1157,7 +1186,8 @@ fun PresetEditorDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = categories.firstOrNull { it.id == selectedCategoryId }?.title ?: "No category selected",
+                    text = categories.firstOrNull { it.id == selectedCategoryId }?.title
+                        ?: "No category selected",
                     style = MaterialTheme.typography.labelMedium
                 )
                 OutlinedTextField(
@@ -1190,9 +1220,10 @@ fun PresetEditorDialog(
                                     ) {
                                         shortcutDraft = ShortcutDraft()
                                     }
-                                    isSensitive = actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
-                                        actionType == PresetActionCodec.TYPE_CREDENTIAL ||
-                                        isSensitive
+                                    isSensitive =
+                                        actionType == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
+                                                actionType == PresetActionCodec.TYPE_CREDENTIAL ||
+                                                isSensitive
                                     menuExpanded = false
                                 }
                             )
@@ -1241,18 +1272,27 @@ fun PresetEditorDialog(
                     .put("login", login)
                     .put("password", password)
                     .toString()
+
                 isKeyboardShortcut -> shortcutDraft.toShortcutString()
                 else -> value
             }
             Button(
                 enabled = title.isNotBlank() &&
-                    selectedCategoryId != null &&
-                    when {
-                        isCredential -> login.isNotBlank() && password.isNotBlank()
-                        isKeyboardShortcut -> shortcutDraft.isValid
-                        else -> value.isNotBlank()
-                    },
-                onClick = { onSave(title, description, selectedActionType, payload, isSensitive || isCredential) }
+                        selectedCategoryId != null &&
+                        when {
+                            isCredential -> login.isNotBlank() && password.isNotBlank()
+                            isKeyboardShortcut -> shortcutDraft.isValid
+                            else -> value.isNotBlank()
+                        },
+                onClick = {
+                    onSave(
+                        title,
+                        description,
+                        selectedActionType,
+                        payload,
+                        isSensitive || isCredential
+                    )
+                }
             ) {
                 Text(confirmText)
             }
@@ -1335,7 +1375,9 @@ fun BondedDeviceRow(
         )
     ) {
         Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1396,6 +1438,7 @@ private fun presetActionIcon(actionType: String?): ImageVector {
         PresetActionCodec.TYPE_CREDENTIAL -> Icons.Filled.Lock
         PresetActionCodec.TYPE_KEY_COMBO,
         PresetActionCodec.TYPE_KEY_PRESS -> Icons.Filled.Keyboard
+
         PresetActionCodec.TYPE_DELAY -> Icons.Filled.Schedule
         else -> Icons.Filled.Apps
     }
