@@ -43,6 +43,24 @@ class PresetRepository(context: Context) {
             ensureBuiltInShortcutPreset(cursorId, "Quick Open", "Quick open file (Ctrl+P)", "ctrl+p", 10)
             ensureBuiltInShortcutPreset(cursorId, "New Chat", "New chat (Ctrl+N)", "ctrl+n", 11)
         }
+        ensureBuiltInCategory("Стримерский дек", sortOrder = 4) { deckId ->
+            ensureBuiltInCommandPreset(
+                deckId,
+                "Open OBS",
+                "Запуск OBS. Путь установки по умолчанию",
+                "\"C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe\"",
+                0
+            )
+            ensureBuiltInShortcutPreset(deckId, "Game Bar", "Панель записи Windows (Win+G)", "win+g", 1)
+            ensureBuiltInShortcutPreset(deckId, "Record", "Старт и стоп записи Game Bar (Win+Alt+R)", "win+alt+r", 2)
+            ensureBuiltInShortcutPreset(deckId, "Last 30s", "Последние 30 секунд, если фоновая запись включена (Win+Alt+G)", "win+alt+g", 3)
+            ensureBuiltInShortcutPreset(deckId, "Mute mic", "Микрофон Game Bar (Win+Alt+M)", "win+alt+m", 4)
+            ensureBuiltInShortcutPreset(deckId, "Screenshot", "Скриншот Game Bar (Win+Alt+PrtScn)", "win+alt+prtsc", 5)
+            ensureBuiltInShortcutPreset(deckId, "Scene 1", "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F1", "ctrl+f1", 6)
+            ensureBuiltInShortcutPreset(deckId, "Scene 2", "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F2", "ctrl+f2", 7)
+            ensureBuiltInShortcutPreset(deckId, "Scene 3", "Сцена OBS. Один раз назначь в OBS тот же Ctrl+F3", "ctrl+f3", 8)
+            ensureBuiltInShortcutPreset(deckId, "Go live", "Эфир OBS. Один раз назначь Start Streaming на Ctrl+F9", "ctrl+f9", 9)
+        }
     }
 
     private suspend fun ensureBuiltInCategory(

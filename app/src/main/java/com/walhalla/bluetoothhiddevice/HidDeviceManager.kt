@@ -392,6 +392,7 @@ class HidDeviceManager(private val context: Context) {
             "." -> 0x37.toByte()
             "/" -> 0x38.toByte()
             "DELETE" -> 0x4C.toByte()
+            "PRINTSCREEN", "PRTSC", "PRTSCN" -> 0x46.toByte()
             "RIGHT" -> 0x4F.toByte()
             "LEFT" -> 0x50.toByte()
             "DOWN" -> 0x51.toByte()
