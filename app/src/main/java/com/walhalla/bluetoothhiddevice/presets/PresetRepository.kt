@@ -21,6 +21,7 @@ class PresetRepository(context: Context) {
         ensureBuiltInCategory("Home", sortOrder = 0) { homeId ->
             ensureBuiltInCommandPreset(homeId, "Calculator", "Windows Calculator", "calc", 0)
             ensureBuiltInCommandPreset(homeId, "Notepad", "Windows Notepad", "notepad", 1)
+            ensureBuiltInShortcutPreset(homeId, "Ctrl+Alt+Del", "Security screen (Ctrl+Alt+Del)", "ctrl+alt+delete", 2)
         }
         ensureBuiltInCategory("Work", sortOrder = 1) { workId ->
             ensureBuiltInCommandPreset(workId, "Firefox Profile Manager", "Open Firefox profile selector", "firefox -p", 0)
