@@ -1607,7 +1607,7 @@ private fun ShortcutPicker(
     onDraftChange: (ShortcutDraft) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedKeyGroup by remember { mutableStateOf(ShortcutKeyGroup.COMMON) }
+    var selectedKeyGroup by remember { mutableStateOf(draft.key?.group ?: ShortcutKeyGroup.COMMON) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -1635,6 +1635,26 @@ private fun ShortcutPicker(
                 onClick = { onDraftChange(draft.copy(win = !draft.win)) },
                 label = { Text("Win") }
             )
+            FilterChip(
+                selected = draft.rctrl,
+                onClick = { onDraftChange(draft.copy(rctrl = !draft.rctrl)) },
+                label = { Text("RCtrl") }
+            )
+            FilterChip(
+                selected = draft.rshift,
+                onClick = { onDraftChange(draft.copy(rshift = !draft.rshift)) },
+                label = { Text("RShift") }
+            )
+            FilterChip(
+                selected = draft.ralt,
+                onClick = { onDraftChange(draft.copy(ralt = !draft.ralt)) },
+                label = { Text("AltGr") }
+            )
+            FilterChip(
+                selected = draft.rwin,
+                onClick = { onDraftChange(draft.copy(rwin = !draft.rwin)) },
+                label = { Text("RWin") }
+            )
         }
         Text(
             text = draft.displayLabel(),
@@ -1642,7 +1662,10 @@ private fun ShortcutPicker(
             fontWeight = FontWeight.SemiBold
         )
         Text("Key", style = MaterialTheme.typography.labelMedium)
-        PrimaryTabRow(selectedTabIndex = ShortcutKeyGroup.entries.indexOf(selectedKeyGroup)) {
+        PrimaryScrollableTabRow(
+            selectedTabIndex = ShortcutKeyGroup.entries.indexOf(selectedKeyGroup),
+            edgePadding = 0.dp
+        ) {
             ShortcutKeyGroup.entries.forEach { group ->
                 Tab(
                     selected = selectedKeyGroup == group,

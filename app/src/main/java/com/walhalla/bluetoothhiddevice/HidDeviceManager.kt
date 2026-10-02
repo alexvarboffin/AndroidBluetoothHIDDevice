@@ -362,15 +362,19 @@ class HidDeviceManager(private val context: Context) {
                 "CTRL", "CONTROL" -> MOD_LEFT_CTRL
                 "ALT" -> MOD_LEFT_ALT
                 "WIN", "GUI", "META" -> MOD_LEFT_GUI
+                "RCTRL", "RCONTROL" -> MOD_RIGHT_CTRL
+                "RSHIFT" -> MOD_RIGHT_SHIFT
+                "RALT", "ALTGR" -> MOD_RIGHT_ALT
+                "RWIN", "RGUI", "RMETA" -> MOD_RIGHT_GUI
                 else -> return null
             }
-            result = result or modifier.toInt()
+            result = result or (modifier.toInt() and 0xFF)
         }
         return if (result == 0) null else result.toByte()
     }
 
     private fun keyNameToUsageId(name: String): Byte? {
-        val upper = name.uppercase()
+        val upper = name.uppercase().filterNot { it.isWhitespace() || it == '_' }.ifEmpty { name.uppercase() }
         if (upper.length == 1) {
             val char = upper.first()
             if (char in 'A'..'Z' || char in '0'..'9') {
@@ -394,14 +398,40 @@ class HidDeviceManager(private val context: Context) {
             "," -> 0x36.toByte()
             "." -> 0x37.toByte()
             "/" -> 0x38.toByte()
-            "DELETE" -> 0x4C.toByte()
+            "CAPSLOCK" -> 0x39.toByte()
             "PRINTSCREEN", "PRTSC", "PRTSCN" -> 0x46.toByte()
+            "SCROLLLOCK" -> 0x47.toByte()
+            "PAUSE", "BREAK" -> 0x48.toByte()
+            "INSERT", "INS" -> 0x49.toByte()
+            "HOME" -> 0x4A.toByte()
+            "PAGEUP", "PGUP" -> 0x4B.toByte()
+            "DELETE", "DEL" -> 0x4C.toByte()
+            "END" -> 0x4D.toByte()
+            "PAGEDOWN", "PGDN" -> 0x4E.toByte()
             "RIGHT" -> 0x4F.toByte()
             "LEFT" -> 0x50.toByte()
             "DOWN" -> 0x51.toByte()
             "UP" -> 0x52.toByte()
+            "NUMLOCK" -> 0x53.toByte()
+            "NUMDIVIDE" -> 0x54.toByte()
+            "NUMMULTIPLY" -> 0x55.toByte()
+            "NUMMINUS" -> 0x56.toByte()
+            "NUMPLUS", "PLUS", "+" -> 0x57.toByte()
+            "NUMENTER" -> 0x58.toByte()
+            "NUM1" -> 0x59.toByte()
+            "NUM2" -> 0x5A.toByte()
+            "NUM3" -> 0x5B.toByte()
+            "NUM4" -> 0x5C.toByte()
+            "NUM5" -> 0x5D.toByte()
+            "NUM6" -> 0x5E.toByte()
+            "NUM7" -> 0x5F.toByte()
+            "NUM8" -> 0x60.toByte()
+            "NUM9" -> 0x61.toByte()
+            "NUM0" -> 0x62.toByte()
+            "NUMDECIMAL" -> 0x63.toByte()
+            "APPLICATION", "MENU", "APPS" -> 0x65.toByte()
             else -> {
-                if (upper.length == 2 && upper.startsWith("F")) {
+                if (upper.length in 2..3 && upper.startsWith("F")) {
                     upper.drop(1).toIntOrNull()?.takeIf { it in 1..12 }?.let {
                         (0x39 + it).toByte()
                     }
@@ -479,6 +509,10 @@ class HidDeviceManager(private val context: Context) {
         private const val MOD_LEFT_SHIFT: Byte = 0x02
         private const val MOD_LEFT_ALT: Byte = 0x04
         private const val MOD_LEFT_GUI: Byte = 0x08
+        private const val MOD_RIGHT_CTRL: Byte = 0x10
+        private const val MOD_RIGHT_SHIFT: Byte = 0x20
+        private const val MOD_RIGHT_ALT: Byte = 0x40
+        private const val MOD_RIGHT_GUI: Byte = 0x80.toByte()
         private const val KEY_R: Byte = 0x15
 
         private const val CYRILLIC_JCUKEN = "ёйцукенгшщзхъфывапролджэячсмитьбю"

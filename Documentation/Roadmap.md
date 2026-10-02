@@ -50,6 +50,8 @@
 - [x] RoomDB: добавлена миграция v2 -> v3 для `presets.isBuiltIn`.
 - [x] RoomDB: миграция v3 -> v4 добавляет `preset_categories.colorArgb`. `0` — без тинта. Цвет уходит в JSON импорта и экспорта.
 - [x] Цвет группы: круглая кнопка `Palette` в меню. Выбранный цвет тонирует карточки пресетов этой группы: фон смешивается с цветом, иконка действия берёт его напрямую. Встроенную группу тоже можно перекрасить.
+- [x] Встроенная группа `Home`: тестовые сочетания Windows (`Ctrl+Alt+Del`, `Ctrl+Shift+Esc`, `Win+E/I/X/D/L/V/./Tab/P/S`, `Win+Shift+S`, `Ctrl+Win+Right`) и апплеты через `Win+R` (`ncpa.cpl`, `ms-settings:*`, `devmgmt.msc`, `services.msc` и др.).
+- [ ] Проверка на Windows host: пройти все пресеты `Home`. Команды `Win+R` печатаются US-кодами, на хосте должна быть английская раскладка.
 - [x] Встроенная группа `Streamer deck`: открытие OBS, шорткаты Game Bar и условные шорткаты сцен OBS. Удалить группу нельзя.
 - [x] Навигация: выбранный таб переживает поворот (`rememberSaveable`). Кнопка назад с `Presets` или `Type` возвращает на `Devices`, со вкладки `Devices` закрывает экран.
 - [x] Build note: для текущей связки AGP 9 built-in Kotlin + KSP добавлен `android.disallowKotlinSourceSets=false` в `gradle.properties`.
@@ -83,6 +85,31 @@
 - [ ] Проверить UX для `STATE_CONNECTING` и `STATE_DISCONNECTING`: при необходимости добавить промежуточное состояние строки.
 - [ ] Решить deprecated warning для `BluetoothAdapter.getDefaultAdapter()` без ломки minSdk/API behavior.
 - [ ] Довести Persistent Mode/Foreground Service до полностью проверенного сценария фоновой работы.
+
+### Keyboard coverage: полная эмуляция клавиш
+
+Отправка: `keyNameToUsageId` и `modifierNameToByte` в `HidDeviceManager.kt`. Форма: `ShortcutKeys` и `ShortcutDraft` в `presets/PresetShortcutDraft.kt`. Строка пресета: `PresetShortcutParser`.
+
+Без правки дескриптора:
+
+- [x] Баг F10–F12: проверка `upper.length == 2` отсекала трёхсимвольные имена, `sendKeyComboBlocking` молча возвращал `false`. Теперь `2..3`.
+- [x] Навигация: Home `0x4A`, End `0x4D`, Page Up `0x4B`, Page Down `0x4E`, Insert `0x49`.
+- [x] Переключатели: Caps Lock `0x39`, Scroll Lock `0x47`, Pause/Break `0x48`, Num Lock `0x53`.
+- [x] Numpad: Num0–Num9, Num+, Num−, Num*, Num/, Num., NumEnter (`0x54`–`0x63`).
+- [x] Клавиша контекстного меню (Application) `0x65`.
+- [x] Правые модификаторы: Right Ctrl `0x10`, Right Shift `0x20`, Right Alt / AltGr `0x40`, Right Win `0x80`.
+- [x] Форма `ShortcutKeys` догоняет менеджер: PrtScn, `\ ; ' , . /`, группы `Nav`, `System`, `Numpad`, чипы `RCtrl`, `RShift`, `AltGr`, `RWin`. Ряд групп прокручивается, форма открывается на группе выбранной клавиши.
+- [x] Парсер: `+` как клавиша (`ctrl++` → Num+), имена с пробелом (`page up`), алиасы (`pgup`, `esc`, `altgr`) приводятся к одному токену. `ShortcutKeys.findByToken` использует тот же `normalizeKey`. Тест: `PresetShortcutParserTest`.
+- [ ] Проверка на хосте: F10–F12, Home/End/PgUp/PgDn, Numpad (Num Lock включён), AltGr, Menu, Edit встроенного `Screenshot` показывает Win + Alt + PrtScn.
+- [ ] Пауза между нажатием и отпусканием в `sendKey`: добавлять, только если хост пропускает сочетания. На `Ctrl+Alt+Del` без паузы работает.
+
+Нужна правка дескриптора (re-pairing хоста, отдельное решение):
+
+- [ ] F13–F24 (`0x68`–`0x73`): Logical Maximum и Usage Maximum массива клавиш сейчас `0x65`.
+- [ ] Мультимедиа: громкость, Play/Pause, Next, Mute — страница Consumer Control, отдельный report ID.
+- [ ] Системные: Sleep, Power — страница System Control, отдельный report ID.
+
+Ввод текста (`charToKeyCode`): латиница, цифры, символы US-раскладки, кириллица ЙЦУКЕН. Кириллица печатается, только если на хосте русская раскладка.
 
 ### Future: одновременные клавиши и удержание (не блокирует релиз)
 

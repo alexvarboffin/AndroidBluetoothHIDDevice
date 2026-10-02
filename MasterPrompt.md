@@ -125,6 +125,12 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Solution:** Two headers with the same title style. `All presets` owns import/export of the whole library. The selected group name owns add-preset and delete-group. Chips wrap with no horizontal scroll. Delete-group stays visible and is disabled for built-in groups so the header does not jump.
 - **Tools/Files:** `HidScreen.PresetsTab`, `Documentation/presets-tab.md`, `Documentation/Roadmap.md`.
 
+### 18. Keyboard Key Coverage
+- **Problem:** Edit of built-in `Screenshot` (`win+alt+prtsc`) showed no chips: form `ShortcutKeys` had no PrtScn, `findByToken` returned null and `toShortcutString()` dropped the modifiers too. F10–F12 were never sent (`length == 2` check). No Home/End/PgUp/PgDn, Numpad, locks, Menu, right modifiers.
+- **Solution:** One key vocabulary. `PresetShortcutParser.normalizeKey` / `normalizeModifier` canonicalize aliases and spaces; `ShortcutKeys.findByToken` and `PresetShortcutDraft` reuse them. `HidDeviceManager.keyNameToUsageId` / `modifierNameToByte` know every token the form offers. `+` as a key maps to Num+ (`0x57`).
+- **Rule:** Adding a key = token in `ShortcutKeys` + usage ID in `keyNameToUsageId` + alias in `normalizeKey` if needed. `PresetShortcutParserTest.everyFormKeyRoundTrips` catches form/parser drift.
+- **Not done (descriptor change, re-pair):** F13–F24, media (Consumer Control), Sleep/Power (System Control). Simultaneous keys and hold: `Documentation/Roadmap.md`.
+
 ## Core Implementation Details
 ...
 ### 4. Persistence Modes

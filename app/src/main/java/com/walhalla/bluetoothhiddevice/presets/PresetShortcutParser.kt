@@ -1,10 +1,21 @@
 package com.walhalla.bluetoothhiddevice.presets
 
 object PresetShortcutParser {
-    private val MODIFIERS = setOf("ctrl", "control", "shift", "alt", "win", "gui", "meta")
+    val MODIFIERS = setOf(
+        "ctrl", "control", "shift", "alt", "win", "gui", "meta",
+        "rctrl", "rcontrol", "rshift", "ralt", "altgr", "rwin", "rgui", "rmeta"
+    )
+
+    fun splitShortcut(shortcut: String): List<String> {
+        val trimmed = shortcut.trim()
+        val endsWithPlusKey = trimmed == "+" || trimmed.endsWith("++")
+        val body = if (endsWithPlusKey) trimmed.dropLast(1) else trimmed
+        val parts = body.split('+').map { it.trim() }.filter { it.isNotEmpty() }
+        return if (endsWithPlusKey) parts + "+" else parts
+    }
 
     fun parse(shortcut: String): PresetAction {
-        val parts = shortcut.split('+').map { it.trim() }.filter { it.isNotEmpty() }
+        val parts = splitShortcut(shortcut)
         require(parts.isNotEmpty()) { "Shortcut cannot be empty" }
 
         val modifierParts = parts.dropLast(1)
@@ -14,7 +25,7 @@ object PresetShortcutParser {
             return PresetAction.KeyPress(normalizeKey(keyPart))
         }
 
-        require(modifierParts.all { it.lowercase() in MODIFIERS }) {
+        require(modifierParts.all { compact(it) in MODIFIERS }) {
             "Unsupported shortcut: $shortcut"
         }
 
@@ -22,17 +33,35 @@ object PresetShortcutParser {
         return PresetAction.KeyCombo(modifier, normalizeKey(keyPart))
     }
 
-    private fun normalizeModifier(modifier: String): String {
-        return when (modifier.lowercase()) {
+    fun normalizeModifier(modifier: String): String {
+        return when (compact(modifier)) {
             "control" -> "CTRL"
-            else -> modifier.uppercase()
+            "rcontrol" -> "RCTRL"
+            "altgr" -> "RALT"
+            "gui", "meta" -> "WIN"
+            "rgui", "rmeta" -> "RWIN"
+            else -> compact(modifier).uppercase()
         }
     }
 
-    private fun normalizeKey(key: String): String {
-        return when (key.lowercase()) {
+    fun normalizeKey(key: String): String {
+        return when (val compactKey = compact(key)) {
             "esc" -> "ESCAPE"
-            else -> key.uppercase()
+            "return" -> "ENTER"
+            "del" -> "DELETE"
+            "ins" -> "INSERT"
+            "pgup" -> "PAGEUP"
+            "pgdn" -> "PAGEDOWN"
+            "printscreen", "prtscn" -> "PRTSC"
+            "break" -> "PAUSE"
+            "menu", "apps" -> "APPLICATION"
+            "+", "plus" -> "NUMPLUS"
+            "" -> key.uppercase()
+            else -> compactKey.uppercase()
         }
+    }
+
+    private fun compact(value: String): String {
+        return value.lowercase().filterNot { it.isWhitespace() || it == '_' }
     }
 }
