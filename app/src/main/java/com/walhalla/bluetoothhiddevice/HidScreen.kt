@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Edit
@@ -1112,9 +1113,14 @@ fun HostCommandPresetMenu(
     onRunPreset: (PresetEntity) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
+
+    if (showAbout) {
+        AboutDialog(onDismiss = { showAbout = false })
+    }
 
     IconButton(
-        enabled = enabled,
+        enabled = true, // was: enabled (the menu now only has About, which works without a host)
         onClick = { expanded = true }
     ) {
         Icon(
@@ -1127,6 +1133,8 @@ fun HostCommandPresetMenu(
         expanded = expanded,
         onDismissRequest = { expanded = false }
     ) {
+        // Preset output is disabled in this menu (kept for later):
+        /*
         Text(
             text = "Command Presets",
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1176,9 +1184,47 @@ fun HostCommandPresetMenu(
                 )
             }
         }
+        */
+        DropdownMenuItem(
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null
+                )
+            },
+            text = { Text("About") },
+            onClick = {
+                expanded = false
+                showAbout = true
+            }
+        )
     }
 }
 
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val appName = remember { context.applicationInfo.loadLabel(context.packageManager).toString() }
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull() ?: "unknown"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("About") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Version $version")
+                Text(context.packageName, style = MaterialTheme.typography.bodySmall)
+                Text("Turns this phone into a Bluetooth HID keyboard for your computer: type text, run presets and control the host from the app or from the web page in your local network.")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    )
+}
 @Composable
 private fun PresetGroupCard(
     modifier: Modifier = Modifier,
