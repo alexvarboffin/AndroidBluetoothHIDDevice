@@ -738,6 +738,14 @@ fun TypeTab(
                         Text("Token: ${webServerState.token}", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString("${webServerState.url}/#${webServerState.token}"))
+                    }) { Text("Copy login link") }
+                    OutlinedButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(webServerState.token))
+                    }) { Text("Copy token") }
+                }
             }
             webServerState.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)

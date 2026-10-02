@@ -62,7 +62,7 @@ class HidForegroundService : Service() {
             webServer = server
         }
         val ip = localIpv4() ?: "<phone-ip>"
-        Log.i(WEB_TAG, "Web server listening: ip=$ip port=$WEB_SERVER_PORT url=http://$ip:$WEB_SERVER_PORT")
+        Log.i(WEB_TAG, "Web server listening: ip=$ip port=$WEB_SERVER_PORT url=http://$ip:$WEB_SERVER_PORT token=$token login=http://$ip:$WEB_SERVER_PORT/#$token")
         return WebServerInfo("http://$ip:$WEB_SERVER_PORT", token)
     }
 

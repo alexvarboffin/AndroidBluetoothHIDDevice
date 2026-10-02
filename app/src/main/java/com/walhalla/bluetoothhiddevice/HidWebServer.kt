@@ -75,6 +75,7 @@ input,textarea,button{width:100%;box-sizing:border-box;font-size:16px;margin:6px
 <pre id="out"></pre>
 <script>
 var t=document.getElementById('token');t.value=localStorage.getItem('hidToken')||'';
+if(location.hash.length>1){t.value=location.hash.substring(1);localStorage.setItem('hidToken',t.value);history.replaceState(null,'','/');status();}
 function call(m,p,b){localStorage.setItem('hidToken',t.value);
  return fetch(p,{method:m,headers:{'X-Token':t.value},body:b}).then(function(r){return r.text()}).then(function(x){document.getElementById('out').textContent=x})}
 function status(){call('GET','/api/status')}
