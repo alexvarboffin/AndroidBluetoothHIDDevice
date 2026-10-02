@@ -2,6 +2,7 @@ package com.walhalla.bluetoothhiddevice.presets
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
@@ -36,12 +37,6 @@ interface PresetDao {
     @Query("SELECT COUNT(*) FROM preset_categories")
     suspend fun getCategoryCount(): Int
 
-    @Query("SELECT * FROM preset_categories WHERE title = :title LIMIT 1")
-    suspend fun getCategoryByTitle(title: String): PresetCategoryEntity?
-
-    @Query("SELECT COUNT(*) FROM presets WHERE categoryId = :categoryId AND title = :title")
-    suspend fun countPresetsInCategory(categoryId: Long, title: String): Int
-
     @Query("SELECT * FROM presets WHERE id = :presetId LIMIT 1")
     suspend fun getPreset(presetId: Long): PresetEntity?
 
@@ -56,12 +51,6 @@ interface PresetDao {
 
     @Query("UPDATE preset_categories SET colorArgb = :colorArgb WHERE id = :categoryId")
     suspend fun updateCategoryColor(categoryId: Long, colorArgb: Int)
-
-    @Query("UPDATE preset_categories SET title = :newTitle WHERE title = :oldTitle AND isBuiltIn = 1")
-    suspend fun renameBuiltInCategory(oldTitle: String, newTitle: String)
-
-    @Query("UPDATE presets SET description = :newDescription WHERE description = :oldDescription AND isBuiltIn = 1")
-    suspend fun replaceBuiltInPresetDescription(oldDescription: String, newDescription: String)
 
     @Query("DELETE FROM preset_categories WHERE id = :categoryId AND isBuiltIn = 0")
     suspend fun deleteCustomCategory(categoryId: Long): Int
@@ -89,6 +78,27 @@ interface PresetDao {
         val presetId = insertPreset(preset)
         insertActions(actions.map { it.copy(presetId = presetId) })
         return presetId
+    }
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertCategoryIfMissing(category: PresetCategoryEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPresetIfMissing(preset: PresetEntity): Long
+
+    /** Adds built-in rows whose IDs are absent. Existing rows, edited or not, stay untouched. */
+    @Transaction
+    suspend fun insertMissingBuiltIns(
+        categories: List<PresetCategoryEntity>,
+        presets: List<PresetEntity>,
+        actionsByPresetId: Map<Long, List<PresetActionEntity>>
+    ) {
+        categories.forEach { insertCategoryIfMissing(it) }
+        presets.forEach { preset ->
+            if (insertPresetIfMissing(preset) != -1L) {
+                insertActions(actionsByPresetId[preset.id].orEmpty().map { it.copy(id = 0) })
+            }
+        }
     }
 
     @Transaction

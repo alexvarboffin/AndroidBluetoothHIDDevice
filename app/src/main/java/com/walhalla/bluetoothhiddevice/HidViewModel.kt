@@ -26,6 +26,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -77,7 +78,11 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         refreshBondedDevices()
         observePresets()
         viewModelScope.launch {
-            presetRepository.ensureSeedData()
+            runCatching {
+                presetRepository.syncBuiltIns()
+            }.onFailure { error ->
+                Log.e(TAG, "Built-in preset sync failed", error)
+            }
         }
     }
 
@@ -312,6 +317,13 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun resetPresetToDefault(preset: PresetEntity) {
+        if (!preset.isBuiltIn) return
+        viewModelScope.launch {
+            presetRepository.resetBuiltInPreset(preset.id)
+        }
+    }
+
     fun requestEditPreset(preset: PresetEntity) {
         // if (preset.isBuiltIn) return
         viewModelScope.launch {
@@ -446,6 +458,16 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = _uiState.value.copy(presetActionTypes = actionTypes)
             }
         }
+
+        viewModelScope.launch {
+            combine(presetRepository.allPresets, presetRepository.allActions) { presets, actions ->
+                runCatching { presetRepository.findModifiedBuiltIns(presets, actions) }
+                    .onFailure { error -> Log.e(TAG, "Modified preset check failed", error) }
+                    .getOrDefault(emptySet())
+            }.collect { modifiedIds ->
+                _uiState.value = _uiState.value.copy(modifiedPresetIds = modifiedIds)
+            }
+        }
     }
 
     private fun observePresetsForCategory(categoryId: Long) {
@@ -520,6 +542,7 @@ data class HidUiState(
     val presets: List<PresetEntity> = emptyList(),
     val allPresets: List<PresetEntity> = emptyList(),
     val presetActionTypes: Map<Long, String> = emptyMap(),
+    val modifiedPresetIds: Set<Long> = emptySet(),
     val pendingSensitivePreset: PresetEntity? = null,
     val editingPreset: PresetEditDraft? = null
 )

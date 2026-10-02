@@ -20,18 +20,27 @@ abstract class PresetDatabase : RoomDatabase() {
     abstract fun presetDao(): PresetDao
 
     companion object {
+        /** Built by tools/build_presets_seed_db.py. Built-in rows keep the same IDs on every device. */
+        const val SEED_ASSET = "databases/presets_seed.db"
+        private const val DATABASE_NAME = "presets.db"
+        private const val LEGACY_DATABASE_NAME = "preset_database"
+
         @Volatile
         private var INSTANCE: PresetDatabase? = null
 
         fun getInstance(context: Context): PresetDatabase {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    PresetDatabase::class.java,
-                    "preset_database"
-                )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
-                    .build()
+                INSTANCE ?: run {
+                    context.applicationContext.deleteDatabase(LEGACY_DATABASE_NAME)
+                    Room.databaseBuilder(
+                        context.applicationContext,
+                        PresetDatabase::class.java,
+                        DATABASE_NAME
+                    )
+                        .createFromAsset(SEED_ASSET)
+                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                        .build()
+                }
                     .also { INSTANCE = it }
             }
         }

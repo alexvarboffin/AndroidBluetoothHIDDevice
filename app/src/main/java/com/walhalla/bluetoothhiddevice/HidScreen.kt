@@ -91,6 +91,7 @@ fun HidScreen(
     var showCategoryEditor by remember { mutableStateOf(false) }
     var showDeleteCategoryDialog by remember { mutableStateOf(false) }
     var presetPendingDelete by remember { mutableStateOf<PresetEntity?>(null) }
+    var presetPendingReset by remember { mutableStateOf<PresetEntity?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showGroupColorDialog by remember { mutableStateOf(false) }
     var viewLayoutName by rememberSaveable { mutableStateOf(PresetViewLayout.LIST.name) }
@@ -222,6 +223,7 @@ fun HidScreen(
                     onEditPreset = viewModel::requestEditPreset,
                     onDuplicatePreset = viewModel::duplicatePreset,
                     onDeletePreset = { presetPendingDelete = it },
+                    onResetPreset = { presetPendingReset = it },
                     onAddPreset = { showPresetEditor = true },
                     onCategoryColorChange = viewModel::setSelectedPresetCategoryColor,
                     onAddCategory = { showCategoryEditor = true },
@@ -330,6 +332,17 @@ fun HidScreen(
             onConfirm = {
                 viewModel.deletePreset(preset)
                 presetPendingDelete = null
+            }
+        )
+    }
+
+    presetPendingReset?.let { preset ->
+        ResetPresetDialog(
+            preset = preset,
+            onDismiss = { presetPendingReset = null },
+            onConfirm = {
+                viewModel.resetPresetToDefault(preset)
+                presetPendingReset = null
             }
         )
     }
@@ -950,6 +963,7 @@ private fun PresetsTab(
     onEditPreset: (PresetEntity) -> Unit,
     onDuplicatePreset: (PresetEntity) -> Unit,
     onDeletePreset: (PresetEntity) -> Unit,
+    onResetPreset: (PresetEntity) -> Unit,
     onAddPreset: () -> Unit,
     onCategoryColorChange: (Int) -> Unit,
     onAddCategory: () -> Unit,
@@ -1029,10 +1043,12 @@ private fun PresetsTab(
                 actionType = uiState.presetActionTypes[preset.id],
                 groupColorArgb = groupColorArgb,
                 enabled = uiState.isConnected,
+                isModified = preset.id in uiState.modifiedPresetIds,
                 onRunPreset = { onRunPreset(preset) },
                 onEditPreset = { onEditPreset(preset) },
                 onDuplicatePreset = { onDuplicatePreset(preset) },
-                onDeletePreset = { onDeletePreset(preset) }
+                onDeletePreset = { onDeletePreset(preset) },
+                onResetPreset = { onResetPreset(preset) }
             )
         }
     } else {
@@ -1043,10 +1059,12 @@ private fun PresetsTab(
                 actionType = uiState.presetActionTypes[preset.id],
                 groupColorArgb = groupColorArgb,
                 enabled = uiState.isConnected,
+                isModified = preset.id in uiState.modifiedPresetIds,
                 onRunPreset = { onRunPreset(preset) },
                 onEditPreset = { onEditPreset(preset) },
                 onDuplicatePreset = { onDuplicatePreset(preset) },
-                onDeletePreset = { onDeletePreset(preset) }
+                onDeletePreset = { onDeletePreset(preset) },
+                onResetPreset = { onResetPreset(preset) }
             )
         }
     }
@@ -1265,10 +1283,12 @@ fun PresetGridCard(
     actionType: String?,
     groupColorArgb: Int,
     enabled: Boolean,
+    isModified: Boolean,
     onRunPreset: () -> Unit,
     onEditPreset: () -> Unit,
     onDuplicatePreset: () -> Unit,
     onDeletePreset: () -> Unit,
+    onResetPreset: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -1329,6 +1349,15 @@ fun PresetGridCard(
                         onDuplicatePreset()
                     }
                 )
+                if (isModified) {
+                    DropdownMenuItem(
+                        text = { Text("Reset to default") },
+                        onClick = {
+                            menuExpanded = false
+                            onResetPreset()
+                        }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("Delete") },
                     enabled = !preset.isBuiltIn,
@@ -1368,9 +1397,21 @@ fun PresetGridCard(
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
+                if (isModified) {
+                    PresetModifiedLabel()
+                }
             }
         }
     }
+}
+
+@Composable
+private fun PresetModifiedLabel() {
+    Text(
+        text = "Modified",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.tertiary
+    )
 }
 
 @Composable
@@ -1379,10 +1420,12 @@ fun PresetListCard(
     actionType: String?,
     groupColorArgb: Int,
     enabled: Boolean,
+    isModified: Boolean,
     onRunPreset: () -> Unit,
     onEditPreset: () -> Unit,
     onDuplicatePreset: () -> Unit,
-    onDeletePreset: () -> Unit
+    onDeletePreset: () -> Unit,
+    onResetPreset: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1440,6 +1483,9 @@ fun PresetListCard(
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
+                    if (isModified) {
+                        PresetModifiedLabel()
+                    }
                 }
             }
             Column(
@@ -1455,6 +1501,18 @@ fun PresetListCard(
                     Text("Run")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (isModified) {
+                        IconButton(
+                            onClick = onResetPreset,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.RestartAlt,
+                                contentDescription = "Reset to default",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                     IconButton(
                         // enabled = !preset.isBuiltIn,
                         onClick = onEditPreset,
@@ -1559,6 +1617,31 @@ fun DeleteCategoryDialog(
                 )
             ) {
                 Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ResetPresetDialog(
+    preset: PresetEntity,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reset to default?") },
+        text = {
+            Text("`${preset.title}` gets back its built-in title, description and action. Your changes are lost.")
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Reset")
             }
         },
         dismissButton = {

@@ -94,7 +94,7 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Credential action:** Editor shows separate `Login` and `Password` fields. Execution types login, presses `Tab`, types password, then presses `Enter`. Credential presets are always marked sensitive and require confirmation before execution/export.
 - **UX rule:** New preset `title` and `description` fields must be prefilled with a generated default like `Preset-123`; ViewModel also applies the same fallback if blanks are submitted.
 - **UX rule:** Preset list items must show a Material icon for the first action type, so users can distinguish command launch, text input, sensitive text, key actions, and delays at a glance.
-- **Item rule:** Preset items can be copied, edited, and deleted. Copy creates a new custom preset in the same category with the same actions and a `copy` suffix. Built-in seed presets are marked `PresetEntity.isBuiltIn`; they can be copied and run, but cannot be edited or deleted. Delete removes only custom presets and cascades their actions after confirmation.
+- **Item rule:** Preset items can be copied, edited, and deleted. Copy creates a new custom preset in the same category with the same actions and a `copy` suffix. Built-in seed presets are marked `PresetEntity.isBuiltIn`; they can be run, copied and edited (with `Reset to default`, see 19), but cannot be deleted. Delete removes only custom presets and cascades their actions after confirmation.
 - **DB note:** `PresetDatabase` v3 adds `presets.isBuiltIn`; migration v2 -> v3 marks the default seed presets as built-in.
 - **Category rule:** Preset categories are user-manageable groups shown as wrapping `FilterChip`s. All chips stay on screen; do not put them in a horizontal scroller. Built-in groups (`Дом`, `Работа`, `Программирование`) are marked `isBuiltIn` and cannot be deleted; custom groups can be added and deleted with cascade removal of their presets. Button placement and labels: `Documentation/presets-tab.md`.
 
@@ -130,6 +130,12 @@ Create an Android application that allows a smartphone to act as a Bluetooth HID
 - **Solution:** One key vocabulary. `PresetShortcutParser.normalizeKey` / `normalizeModifier` canonicalize aliases and spaces; `ShortcutKeys.findByToken` and `PresetShortcutDraft` reuse them. `HidDeviceManager.keyNameToUsageId` / `modifierNameToByte` know every token the form offers. `+` as a key maps to Num+ (`0x57`).
 - **Rule:** Adding a key = token in `ShortcutKeys` + usage ID in `keyNameToUsageId` + alias in `normalizeKey` if needed. `PresetShortcutParserTest.everyFormKeyRoundTrips` catches form/parser drift.
 - **Not done (descriptor change, re-pair):** F13–F24, media (Consumer Control), Sleep/Power (System Control). Simultaneous keys and hold: `Documentation/Roadmap.md`.
+
+### 19. Prepackaged Built-in Presets
+- **Problem:** Seed matched built-ins by title (`id` was autoGenerate, unknown per device). Renaming «Task Manager» made the seed insert it again: duplicate.
+- **Solution:** Room opens `presets.db` via `createFromAsset("databases/presets_seed.db")`. Built-in rows carry our fixed IDs (category `N`, presets `N*100+i`, actions `presetId*10+i`, all < 100 000; user rows start at 100 000 via `sqlite_sequence`). `syncBuiltIns()` inserts only missing IDs. `BuiltInPresetDefaults` reads the same asset for `Modified` and `Reset to default`.
+- **Rule:** Never match built-ins by title. New built-in = new row in `tools/build_presets_seed_db.py` with a new ID, then rerun the script. Schema/version change = update the script's CREATE/`DB_VERSION` from `PresetDatabase_Impl`.
+- **Rule:** Old file `preset_database` was dropped without migration because only the developers use the app. After public release use Room migrations, not a new file name.
 
 ## Core Implementation Details
 ...
