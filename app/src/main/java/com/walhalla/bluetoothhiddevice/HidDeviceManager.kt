@@ -296,6 +296,17 @@ class HidDeviceManager(private val context: Context) {
         return true
     }
 
+    /** Non-blocking key press with optional modifiers (for example "ALT+SHIFT"), sent on the typing queue. */
+    @SuppressLint("MissingPermission")
+    fun sendKeyAsync(keyName: String, modifierName: String? = null) {
+        val device = connectedDevice ?: return
+        val keyCode = keyNameToUsageId(keyName) ?: return
+        val modifier = if (modifierName.isNullOrBlank()) 0.toByte() else (modifierNameToByte(modifierName) ?: return)
+        typingExecutor.execute {
+            sendKey(device, keyCode, modifier)
+        }
+    }
+
     @SuppressLint("MissingPermission")
     fun sendKeyPressBlocking(keyName: String): Boolean {
         val device = connectedDevice ?: return false

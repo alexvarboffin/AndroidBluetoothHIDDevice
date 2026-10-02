@@ -73,6 +73,12 @@ import com.walhalla.bluetoothhiddevice.presets.ShortcutDraft
 import com.walhalla.bluetoothhiddevice.presets.ShortcutKeyGroup
 import com.walhalla.bluetoothhiddevice.presets.ShortcutKeys
 import org.json.JSONObject
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -251,7 +257,10 @@ fun HidScreen(
                 TypeTab(
                     enabled = uiState.isConnected,
                     onSendClipboard = viewModel::sendClipboard,
-                    onTypingChange = viewModel::sendTypingChange
+                    onTypingChange = viewModel::sendTypingChange,
+                    onMouseKey = viewModel::sendMouseKey,
+                    onToggleMouseKeys = viewModel::toggleWindowsMouseKeys,
+                    onOpenMouseKeysSettings = viewModel::openMouseKeysSettingsOnHost
                 )
             } else {
             DevicesTab(
@@ -523,7 +532,10 @@ fun StatusTopBarTitle(status: String, isConnected: Boolean, isBluetoothOff: Bool
 fun TypeTab(
     enabled: Boolean,
     onSendClipboard: (String) -> Unit,
-    onTypingChange: (String, String) -> Unit
+    onTypingChange: (String, String) -> Unit,
+    onMouseKey: (String) -> Unit = {},
+    onToggleMouseKeys: () -> Unit = {},
+    onOpenMouseKeysSettings: () -> Unit = {}
 ) {
     val clipboard = LocalClipboardManager.current
     var draft by rememberSaveable { mutableStateOf("") }
@@ -593,6 +605,141 @@ fun TypeTab(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Mouse keys (Windows)",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Button(
+                onClick = onToggleMouseKeys,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = enabled
+            ) {
+                Text("Toggle Mouse Keys (Alt+Shift+NumLock)")
+            }
+            OutlinedButton(
+                onClick = onOpenMouseKeysSettings,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = enabled
+            ) {
+                Text("Open Mouse Keys settings (speed)")
+            }
+            val rows = listOf(
+                listOf("\u2196" to "NUM7", "\u2191" to "NUM8", "\u2197" to "NUM9"),
+                listOf("\u2190" to "NUM4", "Click" to "NUM5", "\u2192" to "NUM6"),
+                listOf("\u2199" to "NUM1", "\u2193" to "NUM2", "\u2198" to "NUM3")
+            )
+            rows.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { (label, key) ->
+                        MouseKeyButton(
+                            label = label,
+                            keyName = key,
+                            enabled = enabled,
+                            repeatWhileHeld = key != "NUM5",
+                            onMouseKey = onMouseKey,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MouseKeyButton("Left btn", "NUMDIVIDE", enabled, false, onMouseKey, Modifier.weight(1f))
+                MouseKeyButton("Right btn", "NUMMINUS", enabled, false, onMouseKey, Modifier.weight(1f))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MouseKeyButton("Hold", "NUM0", enabled, false, onMouseKey, Modifier.weight(1f))
+                MouseKeyButton("Release", "NUMDECIMAL", enabled, false, onMouseKey, Modifier.weight(1f))
+                MouseKeyButton("NumLock", "NUMLOCK", enabled, false, onMouseKey, Modifier.weight(1f))
+            }
+            Text(
+                text = "Uses the Windows Mouse Keys numpad shortcuts. Press the toggle once (confirm the Windows prompt), keep Num Lock on, then hold an arrow to keep moving.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun MouseKeyButton(
+    label: String,
+    keyName: String,
+    enabled: Boolean,
+    repeatWhileHeld: Boolean,
+    onMouseKey: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
+    val currentOnMouseKey by rememberUpdatedState(onMouseKey)
+    val container = if (enabled) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = if (enabled) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val gestureModifier = if (enabled) {
+        Modifier.pointerInput(keyName, repeatWhileHeld) {
+            detectTapGestures(onPress = {
+                currentOnMouseKey(keyName)
+                val job = if (repeatWhileHeld) {
+                    scope.launch {
+                        delay(350)
+                        while (true) {
+                            currentOnMouseKey(keyName)
+                            delay(60)
+                        }
+                    }
+                } else {
+                    null
+                }
+                tryAwaitRelease()
+                job?.cancel()
+            })
+        }
+    } else {
+        Modifier
+    }
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .background(container, RoundedCornerShape(12.dp))
+            .then(gestureModifier),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = content,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

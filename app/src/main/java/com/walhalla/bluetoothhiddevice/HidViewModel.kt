@@ -233,6 +233,21 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         hidManager?.sendString(HidDeviceManager.PRINTABLE_SYMBOL_TEST)
     }
 
+    /** Sends one numpad key (NUM1..NUM9, NUM0, NUMDECIMAL, NUMDIVIDE, NUMMINUS, ...) for Windows Mouse Keys. */
+    fun sendMouseKey(keyName: String) {
+        hidManager?.sendKeyAsync(keyName)
+    }
+
+    /** Alt + Left Shift + Num Lock toggles Windows Mouse Keys on the host. */
+    fun toggleWindowsMouseKeys() {
+        hidManager?.sendKeyAsync("NUMLOCK", "ALT+SHIFT")
+    }
+
+    /** Opens the Windows Mouse settings page (Mouse Keys speed and acceleration) via Win+R. */
+    fun openMouseKeysSettingsOnHost() {
+        hidManager?.sendWindowsRunCommand("ms-settings:easeofaccess-mouse")
+    }
+
     fun runWindowsCommandPreset(command: String) {
         hidManager?.sendWindowsRunCommand(command)
     }
