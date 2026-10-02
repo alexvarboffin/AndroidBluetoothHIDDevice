@@ -104,6 +104,8 @@ class HidForegroundService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_info_details)
             .setContentIntent(openAppPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
             .setAutoCancel(false)
@@ -156,15 +158,23 @@ class HidForegroundService : Service() {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                setSound(null, null)
+                enableVibration(false)
+                enableLights(false)
+                setShowBadge(false)
+            }
             val manager = getSystemService(NotificationManager::class.java)
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
             manager.createNotificationChannel(serviceChannel)
         }
     }
 
     companion object {
-        private const val CHANNEL_ID = "HidServiceChannel"
+        // A channel's importance cannot be changed after creation, so the silent channel has a new id.
+        private const val LEGACY_CHANNEL_ID = "HidServiceChannel"
+        private const val CHANNEL_ID = "HidServiceChannelSilent"
         private const val NOTIFICATION_ID = 1
 
         private const val EXTRA_NOTIFICATION_CONTENT = "notification_content"

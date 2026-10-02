@@ -181,6 +181,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        viewModel.releaseAllHeldKeys()
         viewModel.keepConnectionAliveInBackground()
     }
 

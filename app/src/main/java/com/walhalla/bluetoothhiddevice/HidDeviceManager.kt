@@ -128,6 +128,7 @@ class HidDeviceManager(private val context: Context) {
             isRegistered = registered
             if (!registered) {
                 connectedDevice = null
+                clearHeldState()
             }
             val status = if (registered) "App Registered (Ready)" else "App Unregistered"
             Log.d(TAG, "onAppStatusChanged: registered=$registered")
@@ -138,8 +139,10 @@ class HidDeviceManager(private val context: Context) {
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
             if (state == BluetoothProfile.STATE_CONNECTED) {
                 connectedDevice = device
+                releaseAll() // start every connection from a clean (all keys up) state
             } else if (state == BluetoothProfile.STATE_DISCONNECTED) {
                 connectedDevice = null
+                clearHeldState()
             }
 
             val stateStr = when (state) {
@@ -296,6 +299,93 @@ class HidDeviceManager(private val context: Context) {
         return true
     }
 
+    // ---- Held keys (real key down / key up), keyboard-only descriptor, up to 6 regular keys ----
+    // sendKey() stays a tap (press + release) for presets and text. pressKey()/releaseKey() keep
+    // the key in the report until released, so the host does its own auto-repeat / Mouse Keys acceleration.
+    private val heldLock = Any()
+    private val heldKeys = LinkedHashSet<Byte>()
+    private var heldModifier: Byte = 0
+    private val holdWatchdog = Runnable { releaseAll() }
+
+    /** Re-arms the safety timer. Call periodically while a finger is still down. */
+    fun holdKeepAlive() {
+        if (synchronized(heldLock) { heldKeys.isEmpty() && heldModifier == 0.toByte() }) return
+        mainHandler.removeCallbacks(holdWatchdog)
+        mainHandler.postDelayed(holdWatchdog, HOLD_TIMEOUT_MS)
+    }
+
+    /** Key goes down and stays down until releaseKey/releaseAll or the safety timeout. */
+    @SuppressLint("MissingPermission")
+    fun pressKey(keyName: String, modifierName: String? = null) {
+        val device = connectedDevice ?: return
+        val keyCode = keyNameToUsageId(keyName) ?: return
+        val modifier = if (modifierName.isNullOrBlank()) 0.toByte() else (modifierNameToByte(modifierName) ?: return)
+        typingExecutor.execute {
+            synchronized(heldLock) {
+                if (keyCode !in heldKeys && heldKeys.size >= MAX_HELD_KEYS) return@execute
+                heldKeys.add(keyCode)
+                heldModifier = (heldModifier.toInt() or modifier.toInt()).toByte()
+                sendHeldReport(device)
+            }
+            mainHandler.post { holdKeepAlive() }
+        }
+    }
+
+    /** Releases one held key; the other held keys stay down. Empty set means an all-zero report. */
+    @SuppressLint("MissingPermission")
+    fun releaseKey(keyName: String) {
+        val keyCode = keyNameToUsageId(keyName) ?: return
+        val device = connectedDevice
+        typingExecutor.execute {
+            synchronized(heldLock) {
+                heldKeys.remove(keyCode)
+                if (heldKeys.isEmpty()) heldModifier = 0
+                if (device != null) sendHeldReport(device)
+            }
+            if (synchronized(heldLock) { heldKeys.isEmpty() }) {
+                mainHandler.post { mainHandler.removeCallbacks(holdWatchdog) }
+            }
+        }
+    }
+
+    /** One all-zero report releases every key and modifier at once. Sent twice in case one packet is lost. */
+    @SuppressLint("MissingPermission")
+    fun releaseAll() {
+        mainHandler.removeCallbacks(holdWatchdog)
+        val device = connectedDevice
+        typingExecutor.execute {
+            synchronized(heldLock) {
+                heldKeys.clear()
+                heldModifier = 0
+                if (device != null) {
+                    sendHeldReport(device)
+                    Thread.sleep(20)
+                    sendHeldReport(device)
+                }
+            }
+        }
+    }
+
+    /** The host can no longer be reached (disconnect): just forget the held state. */
+    private fun clearHeldState() {
+        mainHandler.removeCallbacks(holdWatchdog)
+        synchronized(heldLock) {
+            heldKeys.clear()
+            heldModifier = 0
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun sendHeldReport(device: BluetoothDevice) {
+        val report = ByteArray(8)
+        report[0] = heldModifier
+        var slot = 2
+        for (code in heldKeys) {
+            if (slot > 7) break
+            report[slot++] = code
+        }
+        bluetoothHidDevice?.sendReport(device, 1, report)
+    }
     /** Non-blocking key press with optional modifiers (for example "ALT+SHIFT"), sent on the typing queue. */
     @SuppressLint("MissingPermission")
     fun sendKeyAsync(keyName: String, modifierName: String? = null) {
@@ -516,6 +606,11 @@ class HidDeviceManager(private val context: Context) {
     }
 
     companion object {
+        /** Safety net: if no release / keep-alive arrives within this time, all held keys are released. */
+        private const val HOLD_TIMEOUT_MS = 3000L
+        /** Boot-protocol keyboard report has 6 regular key slots (6KRO). */
+        private const val MAX_HELD_KEYS = 6
+
         private const val MOD_LEFT_CTRL: Byte = 0x01
         private const val MOD_LEFT_SHIFT: Byte = 0x02
         private const val MOD_LEFT_ALT: Byte = 0x04

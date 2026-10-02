@@ -260,7 +260,11 @@ fun HidScreen(
                     onTypingChange = viewModel::sendTypingChange,
                     onMouseKey = viewModel::sendMouseKey,
                     onToggleMouseKeys = viewModel::toggleWindowsMouseKeys,
-                    onOpenMouseKeysSettings = viewModel::openMouseKeysSettingsOnHost
+                    onOpenMouseKeysSettings = viewModel::openMouseKeysSettingsOnHost,
+                    onHoldPress = viewModel::pressHeldKey,
+                    onHoldRelease = viewModel::releaseHeldKey,
+                    onHoldKeepAlive = viewModel::keepHeldKeysAlive,
+                    onReleaseAllHeld = viewModel::releaseAllHeldKeys
                 )
             } else {
             DevicesTab(
@@ -535,8 +539,16 @@ fun TypeTab(
     onTypingChange: (String, String) -> Unit,
     onMouseKey: (String) -> Unit = {},
     onToggleMouseKeys: () -> Unit = {},
-    onOpenMouseKeysSettings: () -> Unit = {}
+    onOpenMouseKeysSettings: () -> Unit = {},
+    onHoldPress: ((String) -> Unit)? = null,
+    onHoldRelease: ((String) -> Unit)? = null,
+    onHoldKeepAlive: () -> Unit = {},
+    onReleaseAllHeld: () -> Unit = {}
 ) {
+    // Never leave a key held on the host when this tab leaves the screen.
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { onReleaseAllHeld() }
+    }
     val clipboard = LocalClipboardManager.current
     var draft by rememberSaveable { mutableStateOf("") }
 
@@ -656,6 +668,9 @@ fun TypeTab(
                             enabled = enabled,
                             repeatWhileHeld = key != "NUM5",
                             onMouseKey = onMouseKey,
+                            onHoldPress = onHoldPress,
+                            onHoldRelease = onHoldRelease,
+                            onHoldKeepAlive = onHoldKeepAlive,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -692,10 +707,16 @@ private fun MouseKeyButton(
     enabled: Boolean,
     repeatWhileHeld: Boolean,
     onMouseKey: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onHoldPress: ((String) -> Unit)? = null,
+    onHoldRelease: ((String) -> Unit)? = null,
+    onHoldKeepAlive: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val currentOnMouseKey by rememberUpdatedState(onMouseKey)
+    val currentHoldPress by rememberUpdatedState(onHoldPress)
+    val currentHoldRelease by rememberUpdatedState(onHoldRelease)
+    val currentHoldKeepAlive by rememberUpdatedState(onHoldKeepAlive)
     val container = if (enabled) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
@@ -709,6 +730,25 @@ private fun MouseKeyButton(
     val gestureModifier = if (enabled) {
         Modifier.pointerInput(keyName, repeatWhileHeld) {
             detectTapGestures(onPress = {
+                val holdPress = currentHoldPress
+                if (repeatWhileHeld && holdPress != null) {
+                    // Real hold: one report with the key down, one all-up report on release.
+                    // The host does the auto-repeat and Mouse Keys acceleration itself.
+                    holdPress(keyName)
+                    val keepAlive = scope.launch {
+                        while (true) {
+                            delay(1000)
+                            currentHoldKeepAlive()
+                        }
+                    }
+                    try {
+                        tryAwaitRelease()
+                    } finally {
+                        keepAlive.cancel()
+                        currentHoldRelease?.invoke(keyName)
+                    }
+                    return@detectTapGestures
+                }
                 currentOnMouseKey(keyName)
                 val job = if (repeatWhileHeld) {
                     scope.launch {

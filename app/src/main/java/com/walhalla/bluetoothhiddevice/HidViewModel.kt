@@ -238,6 +238,23 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         hidManager?.sendKeyAsync(keyName)
     }
 
+    /** Real hold: key stays down until [releaseHeldKey] / [releaseAllHeldKeys] (or the manager's safety timeout). */
+    fun pressHeldKey(keyName: String) {
+        hidManager?.pressKey(keyName)
+    }
+
+    fun releaseHeldKey(keyName: String) {
+        hidManager?.releaseKey(keyName)
+    }
+
+    fun releaseAllHeldKeys() {
+        hidManager?.releaseAll()
+    }
+
+    fun keepHeldKeysAlive() {
+        hidManager?.holdKeepAlive()
+    }
+
     /** Alt + Left Shift + Num Lock toggles Windows Mouse Keys on the host. */
     fun toggleWindowsMouseKeys() {
         hidManager?.sendKeyAsync("NUMLOCK", "ALT+SHIFT")
@@ -507,6 +524,7 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        hidManager?.releaseAll()
         if (isServiceBound) {
             runCatching {
                 getApplication<Application>().unbindService(serviceConnection)
