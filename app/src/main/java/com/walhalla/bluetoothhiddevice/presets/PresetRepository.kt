@@ -1,14 +1,18 @@
 package com.walhalla.bluetoothhiddevice.presets
 
 import android.content.Context
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class PresetRepository(context: Context) {
-    private val dao = PresetDatabase.getInstance(context).presetDao()
+class PresetRepository(
+    context: Context,
+    private val database: PresetDatabase = PresetDatabase.getInstance(context)
+) {
+    private val dao = database.presetDao()
     private val defaults = BuiltInPresetDefaults(context)
 
     val categories: Flow<List<PresetCategoryEntity>> = dao.observeCategories()
@@ -226,14 +230,19 @@ class PresetRepository(context: Context) {
         return dao.deletePreset(presetId) > 0
     }
 
+    /**
+     * Version 2: each category holds its presets, each preset holds its actions, and an action
+     * value is a JSON object. Built-in IDs are the fixed asset IDs, so they match on any device.
+     */
     suspend fun exportToJson(includeSensitive: Boolean): String {
         val categories = dao.getCategories()
-        val presets = dao.getAllPresets().filter { includeSensitive || !it.isSensitive }
-        val presetIds = presets.map { it.id }.toSet()
-        val actions = dao.getAllActions().filter { it.presetId in presetIds }
+        val presetsByCategoryId = dao.getAllPresets()
+            .filter { includeSensitive || !it.isSensitive }
+            .groupBy { it.categoryId }
+        val actionsByPresetId = dao.getAllActions().groupBy { it.presetId }
 
         return JSONObject()
-            .put("version", 1)
+            .put("version", EXPORT_VERSION)
             .put("categories", JSONArray(categories.map { category ->
                 JSONObject()
                     .put("id", category.id)
@@ -241,57 +250,82 @@ class PresetRepository(context: Context) {
                     .put("sortOrder", category.sortOrder)
                     .put("isBuiltIn", category.isBuiltIn)
                     .put("colorArgb", category.colorArgb)
-                    .put("createdAt", category.createdAt)
-            }))
-            .put("presets", JSONArray(presets.map { preset ->
-                JSONObject()
-                    .put("id", preset.id)
-                    .put("categoryId", preset.categoryId)
-                    .put("title", preset.title)
-                    .put("description", preset.description)
-                    .put("riskLevel", preset.riskLevel)
-                    .put("requiresConfirmation", preset.requiresConfirmation)
-                    .put("isSensitive", preset.isSensitive)
-                    .put("isBuiltIn", preset.isBuiltIn)
-                    .put("sortOrder", preset.sortOrder)
-                    .put("createdAt", preset.createdAt)
-            }))
-            .put("actions", JSONArray(actions.map { action ->
-                JSONObject()
-                    .put("presetId", action.presetId)
-                    .put("type", action.type)
-                    .put("payloadJson", action.payloadJson)
-                    .put("sortOrder", action.sortOrder)
+                    .put("presets", JSONArray(presetsByCategoryId[category.id].orEmpty().map { preset ->
+                        JSONObject()
+                            .put("id", preset.id)
+                            .put("title", preset.title)
+                            .put("description", preset.description)
+                            .put("riskLevel", preset.riskLevel)
+                            .put("requiresConfirmation", preset.requiresConfirmation)
+                            .put("isSensitive", preset.isSensitive)
+                            .put("isBuiltIn", preset.isBuiltIn)
+                            .put("sortOrder", preset.sortOrder)
+                            .put("actions", JSONArray(
+                                actionsByPresetId[preset.id].orEmpty().sortedBy { it.sortOrder }.map { action ->
+                                    JSONObject()
+                                        .put("type", action.type)
+                                        .put("value", JSONObject(action.payloadJson))
+                                        .put("sortOrder", action.sortOrder)
+                                }
+                            ))
+                    }))
             }))
             .toString(2)
     }
 
+    /**
+     * Built-in rows are matched by fixed ID and get the file's values. Custom groups are matched
+     * by title, custom presets are skipped when the group already has one with the same title and
+     * actions, so importing the same file twice changes nothing. All or nothing: one transaction.
+     */
     suspend fun importFromJson(json: String) {
         val root = JSONObject(json)
+        database.withTransaction {
+            if (root.optInt("version", 1) >= EXPORT_VERSION) {
+                importNested(root)
+            } else {
+                importLegacy(root)
+            }
+        }
+    }
+
+    private suspend fun importNested(root: JSONObject) {
+        val categories = root.getJSONArray("categories")
+        for (categoryIndex in 0 until categories.length()) {
+            val category = categories.getJSONObject(categoryIndex)
+            val categoryId = resolveImportCategory(category, trustBuiltInIds = true)
+            val presets = category.optJSONArray("presets") ?: JSONArray()
+            for (presetIndex in 0 until presets.length()) {
+                val preset = presets.getJSONObject(presetIndex)
+                val actionsJson = preset.optJSONArray("actions") ?: JSONArray()
+                val actions = (0 until actionsJson.length()).map { actionIndex ->
+                    val action = actionsJson.getJSONObject(actionIndex)
+                    PresetActionEntity(
+                        presetId = 0,
+                        type = action.getString("type"),
+                        payloadJson = action.getJSONObject("value").toString(),
+                        sortOrder = action.optInt("sortOrder", actionIndex)
+                    )
+                }
+                importPreset(categoryId, preset, actions, trustBuiltInIds = true)
+            }
+        }
+    }
+
+    /** Version 1 files: flat arrays and IDs from the old autoincrement database, not asset IDs. */
+    private suspend fun importLegacy(root: JSONObject) {
         val categoryIdMap = mutableMapOf<Long, Long>()
         val categories = root.getJSONArray("categories")
-
         for (index in 0 until categories.length()) {
-            val source = categories.getJSONObject(index)
-            val oldId = source.getLong("id")
-            val newId = dao.insertCategory(
-                PresetCategoryEntity(
-                    title = source.getString("title"),
-                    sortOrder = source.optInt("sortOrder", index),
-                    isBuiltIn = source.optBoolean("isBuiltIn", false),
-                    colorArgb = source.optInt("colorArgb", 0),
-                    createdAt = System.currentTimeMillis()
-                )
-            )
-            categoryIdMap[oldId] = newId
+            val category = categories.getJSONObject(index)
+            categoryIdMap[category.getLong("id")] = resolveImportCategory(category, trustBuiltInIds = false)
         }
 
         val actionsByPresetId = mutableMapOf<Long, MutableList<PresetActionEntity>>()
         val actions = root.getJSONArray("actions")
         for (index in 0 until actions.length()) {
             val action = actions.getJSONObject(index)
-            val oldPresetId = action.getLong("presetId")
-            actionsByPresetId.getOrPut(oldPresetId) { mutableListOf() }.add(
+            actionsByPresetId.getOrPut(action.getLong("presetId")) { mutableListOf() }.add(
                 PresetActionEntity(
                     presetId = 0,
                     type = action.getString("type"),
@@ -303,31 +337,100 @@ class PresetRepository(context: Context) {
 
         val presets = root.getJSONArray("presets")
         for (index in 0 until presets.length()) {
-            val source = presets.getJSONObject(index)
-            val oldPresetId = source.getLong("id")
-            val oldCategoryId = source.getLong("categoryId")
-            val newCategoryId = categoryIdMap[oldCategoryId] ?: continue
-            val presetActions = actionsByPresetId[oldPresetId].orEmpty()
-            val hasSensitiveAction = presetActions.any {
-                it.type == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
-                    it.type == PresetActionCodec.TYPE_CREDENTIAL
-            }
-            val isSensitive = source.optBoolean("isSensitive") || hasSensitiveAction
-            dao.insertPresetWithActions(
-                preset = PresetEntity(
-                    categoryId = newCategoryId,
-                    title = source.getString("title"),
-                    description = source.optString("description"),
-                    riskLevel = if (isSensitive) "sensitive" else source.optString("riskLevel", "normal"),
-                    requiresConfirmation = source.optBoolean("requiresConfirmation") || isSensitive,
-                    isSensitive = isSensitive,
-                    isBuiltIn = false,
-                    sortOrder = source.optInt("sortOrder", index),
-                    createdAt = System.currentTimeMillis()
-                ),
-                actions = presetActions
+            val preset = presets.getJSONObject(index)
+            val categoryId = categoryIdMap[preset.getLong("categoryId")] ?: continue
+            importPreset(
+                categoryId = categoryId,
+                source = preset,
+                actions = actionsByPresetId[preset.getLong("id")].orEmpty().sortedBy { it.sortOrder },
+                trustBuiltInIds = false
             )
         }
+    }
+
+    private suspend fun resolveImportCategory(source: JSONObject, trustBuiltInIds: Boolean): Long {
+        val title = source.getString("title")
+        val colorArgb = source.optInt("colorArgb", 0)
+        val existing = if (source.optBoolean("isBuiltIn", false)) {
+            val id = source.optLong("id", 0)
+            (if (trustBuiltInIds && id in 1 until BUILT_IN_ID_LIMIT) dao.getCategory(id) else null)
+                ?.takeIf { it.isBuiltIn }
+                ?: dao.findCategoryByTitle(title, isBuiltIn = true)
+                ?: dao.findCategoryByTitle(title, isBuiltIn = false)
+        } else {
+            dao.findCategoryByTitle(title, isBuiltIn = false)
+        }
+
+        if (existing != null) {
+            if (existing.colorArgb != colorArgb) dao.updateCategoryColor(existing.id, colorArgb)
+            return existing.id
+        }
+        return dao.insertCategory(
+            PresetCategoryEntity(
+                title = title,
+                sortOrder = dao.getMaxCategorySortOrder() + 1,
+                isBuiltIn = false,
+                colorArgb = colorArgb
+            )
+        )
+    }
+
+    private suspend fun importPreset(
+        categoryId: Long,
+        source: JSONObject,
+        actions: List<PresetActionEntity>,
+        trustBuiltInIds: Boolean
+    ) {
+        actions.forEach { PresetActionCodec.fromEntity(it) }
+
+        val title = source.getString("title")
+        val description = source.optString("description")
+        val hasSensitiveAction = actions.any {
+            it.type == PresetActionCodec.TYPE_TYPE_SENSITIVE_TEXT ||
+                it.type == PresetActionCodec.TYPE_CREDENTIAL
+        }
+        val isSensitive = source.optBoolean("isSensitive") || hasSensitiveAction
+        val riskLevel = if (isSensitive) "sensitive" else source.optString("riskLevel", "normal")
+        val requiresConfirmation = source.optBoolean("requiresConfirmation") || isSensitive
+
+        val id = source.optLong("id", 0)
+        if (trustBuiltInIds && source.optBoolean("isBuiltIn", false) && id in 1 until BUILT_IN_ID_LIMIT) {
+            val builtIn = dao.getPreset(id)?.takeIf { it.isBuiltIn }
+            if (builtIn != null) {
+                dao.updatePresetWithActions(
+                    preset = builtIn.copy(
+                        title = title,
+                        description = description,
+                        riskLevel = riskLevel,
+                        requiresConfirmation = requiresConfirmation,
+                        isSensitive = isSensitive
+                    ),
+                    actions = actions
+                )
+                return
+            }
+        }
+
+        val incomingActions = comparableActions(actions)
+        val alreadyThere = dao.getPresetsInCategory(categoryId).any { existing ->
+            existing.title == title &&
+                comparableActions(dao.getActionsForPreset(existing.id)) == incomingActions
+        }
+        if (alreadyThere) return
+
+        dao.insertPresetWithActions(
+            preset = PresetEntity(
+                categoryId = categoryId,
+                title = title,
+                description = description,
+                riskLevel = riskLevel,
+                requiresConfirmation = requiresConfirmation,
+                isSensitive = isSensitive,
+                isBuiltIn = false,
+                sortOrder = dao.getMaxPresetSortOrder(categoryId) + 1
+            ),
+            actions = actions
+        )
     }
 
     private fun actionFromValue(actionType: String, value: String): PresetAction {
@@ -344,5 +447,12 @@ class PresetRepository(context: Context) {
             PresetActionCodec.TYPE_KEYBOARD_SHORTCUT -> PresetShortcutParser.parse(value)
             else -> PresetAction.RunWindowsCommand(value)
         }
+    }
+
+    companion object {
+        const val EXPORT_VERSION = 2
+
+        /** Built-in rows in presets_seed.db use IDs below this; user rows start here. */
+        const val BUILT_IN_ID_LIMIT = 100_000L
     }
 }

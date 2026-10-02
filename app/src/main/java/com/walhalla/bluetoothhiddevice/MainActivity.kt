@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
         val json = pendingPresetExportJson ?: return@registerForActivityResult
         pendingPresetExportJson = null
         if (uri == null) return@registerForActivityResult
-        contentResolver.openOutputStream(uri)?.use { outputStream ->
+        contentResolver.openOutputStream(uri, "wt")?.use { outputStream ->
             outputStream.write(json.toByteArray())
         }
     }

@@ -37,6 +37,16 @@ interface PresetDao {
     @Query("SELECT COUNT(*) FROM preset_categories")
     suspend fun getCategoryCount(): Int
 
+    @Query("SELECT * FROM preset_categories WHERE id = :categoryId LIMIT 1")
+    suspend fun getCategory(categoryId: Long): PresetCategoryEntity?
+
+    /** Import only: custom groups have no stable ID across devices, so they are matched by title. */
+    @Query("SELECT * FROM preset_categories WHERE title = :title AND isBuiltIn = :isBuiltIn ORDER BY id LIMIT 1")
+    suspend fun findCategoryByTitle(title: String, isBuiltIn: Boolean): PresetCategoryEntity?
+
+    @Query("SELECT * FROM presets WHERE categoryId = :categoryId ORDER BY sortOrder, title")
+    suspend fun getPresetsInCategory(categoryId: Long): List<PresetEntity>
+
     @Query("SELECT * FROM presets WHERE id = :presetId LIMIT 1")
     suspend fun getPreset(presetId: Long): PresetEntity?
 
