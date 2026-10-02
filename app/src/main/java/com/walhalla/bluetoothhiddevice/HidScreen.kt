@@ -264,7 +264,9 @@ fun HidScreen(
                     onHoldPress = viewModel::pressHeldKey,
                     onHoldRelease = viewModel::releaseHeldKey,
                     onHoldKeepAlive = viewModel::keepHeldKeysAlive,
-                    onReleaseAllHeld = viewModel::releaseAllHeldKeys
+                    onReleaseAllHeld = viewModel::releaseAllHeldKeys,
+                    webServerState = viewModel.webServerState.collectAsState().value,
+                    onWebServerToggle = viewModel::setWebServerEnabled
                 )
             } else {
             DevicesTab(
@@ -543,7 +545,9 @@ fun TypeTab(
     onHoldPress: ((String) -> Unit)? = null,
     onHoldRelease: ((String) -> Unit)? = null,
     onHoldKeepAlive: () -> Unit = {},
-    onReleaseAllHeld: () -> Unit = {}
+    onReleaseAllHeld: () -> Unit = {},
+    webServerState: HidViewModel.WebServerUiState = HidViewModel.WebServerUiState(),
+    onWebServerToggle: (Boolean) -> Unit = {}
 ) {
     // Never leave a key held on the host when this tab leaves the screen.
     androidx.compose.runtime.DisposableEffect(Unit) {
@@ -698,11 +702,57 @@ fun TypeTab(
             )
         }
     }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Web control (LAN)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = webServerState.running,
+                    onCheckedChange = onWebServerToggle
+                )
+            }
+            if (webServerState.running) {
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("URL: ${webServerState.url}", style = MaterialTheme.typography.bodyMedium)
+                        Text("Token: ${webServerState.token}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+            webServerState.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                text = "Open the URL in a browser on the same Wi-Fi and enter the token. Anyone with the token can type on the connected host, so keep it off when not needed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
 
 @Composable
-private fun MouseKeyButton(
-    label: String,
+private fun MouseKeyButton(    label: String,
     keyName: String,
     enabled: Boolean,
     repeatWhileHeld: Boolean,

@@ -238,6 +238,36 @@ class HidViewModel(application: Application) : AndroidViewModel(application) {
         hidManager?.sendKeyAsync(keyName)
     }
 
+    data class WebServerUiState(
+        val running: Boolean = false,
+        val url: String = "",
+        val token: String = "",
+        val error: String? = null
+    )
+
+    private val _webServerState = MutableStateFlow(WebServerUiState())
+    val webServerState: StateFlow<WebServerUiState> = _webServerState.asStateFlow()
+
+    fun setWebServerEnabled(enabled: Boolean) {
+        val service = hidService
+        if (service == null) {
+            _webServerState.value = WebServerUiState(error = "Service is not ready yet")
+            return
+        }
+        if (!enabled) {
+            service.stopWebServer()
+            _webServerState.value = WebServerUiState()
+            return
+        }
+        // Keep the service alive in foreground while the server is on.
+        service.startForegroundMode("Web control is on")
+        val info = service.startWebServer()
+        _webServerState.value = if (info == null) {
+            WebServerUiState(error = "Could not start the server (port busy?)")
+        } else {
+            WebServerUiState(running = true, url = info.url, token = info.token)
+        }
+    }
     /** Real hold: key stays down until [releaseHeldKey] / [releaseAllHeldKeys] (or the manager's safety timeout). */
     fun pressHeldKey(keyName: String) {
         hidManager?.pressKey(keyName)

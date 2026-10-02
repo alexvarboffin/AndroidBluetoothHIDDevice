@@ -9,7 +9,11 @@ import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.security.SecureRandom
 
 class HidForegroundService : Service() {
 
@@ -35,6 +39,51 @@ class HidForegroundService : Service() {
         }
     }
 
+    // ---- LAN web control (off by default, started manually from the Type tab) ----
+    private var webServer: HidWebServer? = null
+
+    data class WebServerInfo(val url: String, val token: String)
+
+    fun isWebServerRunning(): Boolean = webServer != null
+
+    fun startWebServer(): WebServerInfo? {
+        val prefs = getSharedPreferences("web_server", MODE_PRIVATE)
+        val token = prefs.getString("token", null) ?: ByteArray(16).also { SecureRandom().nextBytes(it) }
+            .joinToString("") { "%02x".format(it) }
+            .also { prefs.edit().putString("token", it).apply() }
+        if (webServer == null) {
+            val server = HidWebServer(WEB_SERVER_PORT, token, hidManager)
+            try {
+                server.start()
+            } catch (e: Exception) {
+                Log.e(WEB_TAG, "Web server failed to start on port $WEB_SERVER_PORT", e)
+                return null
+            }
+            webServer = server
+        }
+        val ip = localIpv4() ?: "<phone-ip>"
+        Log.i(WEB_TAG, "Web server listening: ip=$ip port=$WEB_SERVER_PORT url=http://$ip:$WEB_SERVER_PORT")
+        return WebServerInfo("http://$ip:$WEB_SERVER_PORT", token)
+    }
+
+    fun stopWebServer() {
+        if (webServer != null) Log.i(WEB_TAG, "Web server stopped")
+        webServer?.stop()
+        webServer = null
+    }
+
+    private fun localIpv4(): String? = runCatching {
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }
+            .firstOrNull { it is Inet4Address && it.isSiteLocalAddress }
+            ?.hostAddress
+    }.getOrNull()
+
+    override fun onDestroy() {
+        stopWebServer()
+        super.onDestroy()
+    }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_DISCONNECT -> {
@@ -176,6 +225,8 @@ class HidForegroundService : Service() {
         private const val LEGACY_CHANNEL_ID = "HidServiceChannel"
         private const val CHANNEL_ID = "HidServiceChannelSilent"
         private const val NOTIFICATION_ID = 1
+        private const val WEB_SERVER_PORT = 8080
+        private const val WEB_TAG = "HidWebServer"
 
         private const val EXTRA_NOTIFICATION_CONTENT = "notification_content"
 
