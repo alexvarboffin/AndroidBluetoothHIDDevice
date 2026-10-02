@@ -208,6 +208,51 @@ class PresetRepository(
         return true
     }
 
+    suspend fun addPresetWithActions(
+        categoryId: Long,
+        title: String,
+        description: String,
+        actions: List<PresetAction>
+    ): Long {
+        val sortOrder = dao.getMaxPresetSortOrder(categoryId) + 1
+        return dao.insertPresetWithActions(
+            preset = PresetEntity(
+                categoryId = categoryId,
+                title = title,
+                description = description,
+                sortOrder = sortOrder
+            ),
+            actions = actions.mapIndexed { index, action -> PresetActionCodec.toEntity(0, action, index) }
+        )
+    }
+
+    suspend fun replacePresetActions(
+        presetId: Long,
+        title: String,
+        description: String,
+        actions: List<PresetAction>
+    ): Boolean {
+        val source = getPresetWithActions(presetId) ?: return false
+        dao.updatePresetWithActions(
+            preset = source.preset.copy(title = title, description = description),
+            actions = actions.mapIndexed { index, action -> PresetActionCodec.toEntity(presetId, action, index) }
+        )
+        return true
+    }
+
+    /** Presets listed in [orderedIds] come first in that order, the rest keep their relative order. */
+    suspend fun reorderPresets(categoryId: Long, orderedIds: List<Long>) {
+        database.withTransaction {
+            val inCategory = dao.getPresetsInCategory(categoryId)
+            val byId = inCategory.associateBy { it.id }
+            val ordered = orderedIds.distinct().mapNotNull { byId[it] }
+            val rest = inCategory.filter { it.id !in orderedIds }.sortedBy { it.sortOrder }
+            (ordered + rest).forEachIndexed { index, preset ->
+                if (preset.sortOrder != index) dao.updatePreset(preset.copy(sortOrder = index))
+            }
+        }
+    }
+
     suspend fun duplicatePreset(presetId: Long): Boolean {
         val source = getPresetWithActions(presetId) ?: return false
         val nextSortOrder = dao.getMaxPresetSortOrder(source.preset.categoryId) + 1

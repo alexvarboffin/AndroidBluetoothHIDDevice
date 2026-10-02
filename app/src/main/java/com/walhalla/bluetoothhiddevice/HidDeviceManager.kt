@@ -117,6 +117,7 @@ class HidDeviceManager(private val context: Context) {
     }
 
     private fun updateStatus(status: String) {
+        lastStatus = status
         mainHandler.post {
             onStatusChanged?.invoke(status, connectedDevice)
             onConnectionChanged?.invoke(status, connectedDevice != null)
@@ -139,6 +140,9 @@ class HidDeviceManager(private val context: Context) {
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
             if (state == BluetoothProfile.STATE_CONNECTED) {
                 connectedDevice = device
+                device?.address?.let {
+                    context.getSharedPreferences("hid_manager", Context.MODE_PRIVATE).edit().putString("last_device", it).apply()
+                }
                 releaseAll() // start every connection from a clean (all keys up) state
             } else if (state == BluetoothProfile.STATE_DISCONNECTED) {
                 connectedDevice = null
@@ -247,6 +251,36 @@ class HidDeviceManager(private val context: Context) {
         }
         Log.d(TAG, "Disconnecting from ${device.name}")
         bluetoothHidDevice?.disconnect(device)
+    }
+
+    @Volatile
+    var lastStatus: String = ""
+        private set
+
+    fun connectedAddress(): String? = connectedDevice?.address
+
+    @SuppressLint("MissingPermission")
+    fun connectedName(): String? = try {
+        connectedDevice?.name
+    } catch (e: SecurityException) {
+        null
+    }
+
+    fun lastDeviceAddress(): String? =
+        context.getSharedPreferences("hid_manager", Context.MODE_PRIVATE).getString("last_device", null)
+
+    /** Reconnects to the host that was connected last time. Returns a short result for the web page. */
+    @SuppressLint("MissingPermission")
+    fun reconnectLast(): String {
+        if (connectedDevice != null) return "already connected"
+        val address = lastDeviceAddress() ?: return "no previous host"
+        val device = try {
+            adapter?.getRemoteDevice(address)
+        } catch (e: IllegalArgumentException) {
+            null
+        } ?: return "no previous host"
+        mainHandler.post { connect(device) }
+        return "connecting"
     }
 
     @SuppressLint("MissingPermission")
