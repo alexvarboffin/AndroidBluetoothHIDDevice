@@ -6,7 +6,7 @@ Android app that turns a phone into a Bluetooth HID keyboard for a paired host d
 
 Pre-built release: [v1.0](https://github.com/alexvarboffin/AndroidBluetoothHIDDevice/releases/tag/v1.0)  
 Asset: `bluetooth-hid-device-1.0.apk`
-фз
+
 ## Features
 
 - Bluetooth HID Device registration through Android's `BluetoothHidDevice` API.
