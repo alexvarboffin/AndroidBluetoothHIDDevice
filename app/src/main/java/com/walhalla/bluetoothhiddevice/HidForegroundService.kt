@@ -52,7 +52,11 @@ class HidForegroundService : Service() {
             .joinToString("") { "%02x".format(it) }
             .also { prefs.edit().putString("token", it).apply() }
         if (webServer == null) {
-            val server = HidWebServer(WEB_SERVER_PORT, token, hidManager)
+            val server = HidWebServer(
+                WEB_SERVER_PORT, token, hidManager,
+                com.walhalla.bluetoothhiddevice.presets.PresetRepository(applicationContext),
+                com.walhalla.bluetoothhiddevice.presets.PresetExecutor(hidManager)
+            )
             try {
                 server.start()
             } catch (e: Exception) {
